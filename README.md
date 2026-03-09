@@ -93,13 +93,14 @@ Client
 
 Setup rapido:
 
-1. `docker compose up --build`
+1. `docker compose up -d --build`
 2. Aguardar a API responder em `http://localhost:8000/up`
 3. Fazer login com um usuario seed
 4. Testar compra e reembolso pelas rotas `/api`
 
 ```bash
-docker compose up --build
+docker compose up -d --build
+curl http://localhost:8000/up
 ```
 
 Servicos:
@@ -111,16 +112,38 @@ Servicos:
 
 ## Como rodar os testes
 
+O caminho principal de validacao do projeto e via Docker. Esse e o comando que o avaliador pode executar para validar o criterio de TDD do nivel 3.
+
+Via Docker:
+
+```bash
+docker compose up -d --build
+docker compose exec app php artisan test
+```
+
+Se a stack ja estiver de pe:
+
+```bash
+docker compose exec app php artisan test
+```
+
+Para rebuildar a aplicacao antes de rodar novamente:
+
+```bash
+docker compose up -d --build
+docker compose exec app php artisan test
+```
+
+Opcionalmente, para rodar apenas testes de feature:
+
+```bash
+docker compose exec app php artisan test --testsuite=Feature
+```
+
 No host:
 
 ```bash
 php -d extension=pdo_sqlite -d extension=sqlite3 vendor/bin/phpunit --testdox
-```
-
-No container:
-
-```bash
-docker compose exec app php artisan test
 ```
 
 CI:
