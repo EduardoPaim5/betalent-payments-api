@@ -1,10 +1,10 @@
 # BeTalent Multi-Gateway Payments API
 
-API RESTful em Laravel para o desafio pratico Back-end da BeTalent.
+API RESTful em Laravel para o desafio prático Back-end da BeTalent.
 
-## Avaliacao rapida
+## Avaliação rápida
 
-Execute os comandos abaixo na raiz do repositorio:
+Execute os comandos abaixo na raiz do repositório:
 
 ```bash
 docker compose up -d --build
@@ -12,7 +12,13 @@ curl http://localhost:8000/up
 docker compose exec app php artisan test
 ```
 
-Se o seu ambiente usar o binario legado, substitua `docker compose` por `docker-compose`.
+Se o seu ambiente usar o binário legado, substitua `docker compose` por `docker-compose`:
+
+```bash
+docker-compose up -d --build
+curl http://localhost:8000/up
+docker-compose exec app php artisan test
+```
 
 ## Requisitos
 
@@ -24,24 +30,24 @@ Se o seu ambiente usar o binario legado, substitua `docker compose` por `docker-
 - Laravel 12
 - PHP 8.4+
 - MySQL 8
-- Laravel Sanctum para autenticacao por token
+- Laravel Sanctum para autenticação por token
 - Docker Compose com `app`, `mysql` e `gateway-mock`
-- GitHub Actions para validacao automatica
+- GitHub Actions para validação automatizada
 
 ## Arquitetura
 
 - `Domain`: enums e regras de estado
-- `Application`: servicos de compra e reembolso
+- `Application`: serviços de compra e reembolso
 - `Infrastructure`: Eloquent, adapters HTTP dos gateways e seeders
 - `HTTP`: controllers, requests, middleware, resources e resposta padronizada
 
-## Architectural Decisions
+## Decisões arquiteturais
 
-- O valor da compra e sempre calculado no backend para evitar manipulacao no cliente
-- O contrato entre a aplicacao e os gateways passa por adapters, o que simplifica a adicao de novos gateways
-- `gateway_attempts` existe para rastrear fallback, latencia e falhas por tentativa
-- `external_id` e obrigatorio para confirmar uma cobranca aprovada e permitir reembolso com seguranca
-- O gateway salvo na transacao representa apenas o gateway vencedor
+- O valor da compra é sempre calculado no backend para evitar manipulação no cliente.
+- O contrato entre a aplicação e os gateways passa por adapters, o que simplifica a adição de novos gateways.
+- `gateway_attempts` existe para rastrear fallback, latência e falhas por tentativa.
+- `external_id` é obrigatório para confirmar uma cobrança aprovada e permitir reembolso com segurança.
+- O gateway salvo na transação representa apenas o gateway vencedor.
 
 ## Diagrama simplificado
 
@@ -56,20 +62,20 @@ Client
   -> ORM / MySQL
 ```
 
-## Regras de negocio
+## Regras de negócio
 
-- Compra publica com multiplos produtos
+- Compra pública com múltiplos produtos
 - Valor calculado exclusivamente no backend
-- Gateways ativos sao processados por ordem de prioridade crescente
-- Falha em um gateway aciona tentativa no proximo gateway ativo
-- A transacao so vira `paid` quando existir aprovacao com `external_id`
-- Reembolso so e permitido para transacoes `paid`
+- Gateways ativos são processados por ordem de prioridade crescente
+- Falha em um gateway aciona tentativa no próximo gateway ativo
+- A transação só vira `paid` quando existir aprovação com `external_id`
+- Reembolso só é permitido para transações `paid`
 - Reembolso usa obrigatoriamente o gateway vencedor da compra
-- Cliente e criado ou reaproveitado automaticamente pelo email
+- Cliente é criado ou reaproveitado automaticamente pelo email
 
 ## Status
 
-### Transacao
+### Transação
 
 - `processing`
 - `paid`
@@ -86,7 +92,7 @@ Client
 ## Roles
 
 - `ADMIN`: acesso total
-- `MANAGER`: gerencia usuarios e produtos, sem poder promover usuarios para `ADMIN`
+- `MANAGER`: gerencia usuários e produtos, sem poder promover usuários para `ADMIN`
 - `FINANCE`: gerencia produtos e realiza reembolso
 - `USER`: acesso autenticado restante
 
@@ -103,19 +109,19 @@ Client
 
 ## Como subir com Docker
 
-Setup rapido:
+Setup rápido:
 
 1. `docker compose up -d --build`
-2. Aguardar a API responder em `http://localhost:8000/up`
-3. Fazer login com um usuario seed
-4. Testar compra e reembolso pelas rotas `/api`
+2. Aguarde a API responder em `http://localhost:8000/up`
+3. Faça login com um usuário seed
+4. Teste compra e reembolso pelas rotas `/api`
 
 ```bash
 docker compose up -d --build
 curl http://localhost:8000/up
 ```
 
-Servicos:
+Serviços:
 
 - API: `http://localhost:8000`
 - Gateway 1 mock: `http://localhost:3001`
@@ -124,9 +130,9 @@ Servicos:
 
 ## Como rodar os testes
 
-O caminho principal de validacao do projeto e via Docker. Esse e o comando que o avaliador pode executar para validar o criterio de TDD do nivel 3.
+O caminho principal de validação do projeto é via Docker. Este é o comando que o avaliador pode executar para validar o critério de TDD do nível 3.
 
-Todos os comandos abaixo assumem execucao na raiz do repositorio.
+Todos os comandos abaixo assumem execução na raiz do repositório.
 
 Via Docker:
 
@@ -135,13 +141,19 @@ docker compose up -d --build
 docker compose exec app php artisan test
 ```
 
-Se a stack ja estiver de pe:
+Se a stack já estiver de pé:
 
 ```bash
 docker compose exec app php artisan test
 ```
 
-Para rebuildar a aplicacao antes de rodar novamente:
+Se o seu ambiente usar o binário legado:
+
+```bash
+docker-compose exec app php artisan test
+```
+
+Para rebuildar a aplicação antes de rodar novamente:
 
 ```bash
 docker compose up -d --build
@@ -167,12 +179,12 @@ CI:
 
 Arquivo de ambiente:
 
-- Use `.env.example` como base para execucao local
-- No fluxo com Docker, o entrypoint cria `.env` automaticamente se o arquivo nao existir
+- Use `.env.example` como base para execução local
+- No fluxo com Docker, o entrypoint cria `.env` automaticamente se o arquivo não existir
 
 ## Credenciais seed
 
-Senha para todos os usuarios seed: `password123`
+Senha para todos os usuários seed: `password123`
 
 - `admin@betalent.local` (`ADMIN`)
 - `manager@betalent.local` (`MANAGER`)
@@ -190,13 +202,13 @@ Produtos seed:
 - `Monitor 27` - `129900`
 - `Mechanical Keyboard` - `39900`
 
-## Validacao manual dos mocks
+## Validação manual dos mocks
 
-- `cvv: "010"`: fluxo normal de aprovacao
+- `cvv: "010"`: fluxo normal de aprovação
 - `cvv: "100"`: falha no Gateway 1 e valida fallback no Gateway 2
-- `cvv: "200"`: nao deve ser usado para validar fallback, porque pode falhar nos dois gateways
+- `cvv: "200"`: não deve ser usado para validar fallback, porque pode falhar nos dois gateways
 
-## Autenticacao
+## Autenticação
 
 ### Login
 
@@ -236,7 +248,7 @@ Authorization: Bearer <token>
 
 ## Rotas
 
-### Publicas
+### Públicas
 
 - `POST /api/login`
 - `POST /api/purchases`
@@ -247,7 +259,7 @@ Authorization: Bearer <token>
 - `PATCH /api/gateways/{gateway}/priority` (`ADMIN`)
 - `PATCH /api/gateways/{gateway}/status` (`ADMIN`)
 
-### Usuarios
+### Usuários
 
 - `GET /api/users` (`ADMIN`, `MANAGER`)
 - `POST /api/users` (`ADMIN`, `MANAGER`)
@@ -270,7 +282,7 @@ Authorization: Bearer <token>
 - `GET /api/transactions`
 - `GET /api/transactions/{transaction}`
 
-Filtros disponiveis:
+Filtros disponíveis:
 
 - `GET /api/transactions?status=paid&per_page=10`
 - `GET /api/clients?email=tester`
@@ -302,11 +314,11 @@ Filtros disponiveis:
 
 Regras:
 
-- `items` nao pode ser vazio
+- `items` não pode ser vazio
 - `quantity` deve ser maior que zero
-- produto inativo nao pode ser comprado
-- `amount` total da transacao e calculado no backend
-- `unit_amount` e `line_total` ficam congelados no historico da compra
+- produto inativo não pode ser comprado
+- `amount` total da transação é calculado no backend
+- `unit_amount` e `line_total` ficam congelados no histórico da compra
 
 ## Contrato de reembolso
 
@@ -320,9 +332,9 @@ Regras:
 
 Regras:
 
-- apenas transacoes `paid` podem ser reembolsadas
-- transacoes `failed`, `refunded` e `refund_failed` sao bloqueadas
-- reembolso duplicado nao e permitido porque o status da transacao e atualizado apos o primeiro processamento
+- apenas transações `paid` podem ser reembolsadas
+- transações `failed`, `refunded` e `refund_failed` são bloqueadas
+- reembolso duplicado não é permitido porque o status da transação é atualizado após o primeiro processamento
 
 ## Resposta de erro
 
@@ -340,7 +352,7 @@ Regras:
 }
 ```
 
-Codigos usados:
+Códigos usados:
 
 - `validation_error`
 - `forbidden`
@@ -352,18 +364,18 @@ Codigos usados:
 ## O que foi validado
 
 - login por Sanctum
-- CRUD basico de usuarios e produtos
-- ativacao e reordenacao de gateways
-- compra com multiplos produtos
+- CRUD básico de usuários e produtos
+- ativação e reordenação de gateways
+- compra com múltiplos produtos
 - fallback entre gateways
-- persistencia de `external_id`
+- persistência de `external_id`
 - reembolso no gateway correto
 - `request_id` em header e payload das respostas da API
-- serializacao controlada com API Resources
+- serialização controlada com API Resources
 
 ## Melhorias futuras
 
-- idempotencia para criacao de compra
+- idempotência para criação de compra
 - filtros adicionais nas listagens
 - observabilidade mais detalhada
 - testes de contrato para os gateways externos
