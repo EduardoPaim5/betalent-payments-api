@@ -2,6 +2,18 @@
 
 API RESTful em Laravel para o desafio pratico Back-end da BeTalent.
 
+## Avaliacao rapida
+
+Execute os comandos abaixo na raiz do repositorio:
+
+```bash
+docker compose up -d --build
+curl http://localhost:8000/up
+docker compose exec app php artisan test
+```
+
+Se o seu ambiente usar o binario legado, substitua `docker compose` por `docker-compose`.
+
 ## Requisitos
 
 - Docker e Docker Compose
@@ -114,6 +126,8 @@ Servicos:
 
 O caminho principal de validacao do projeto e via Docker. Esse e o comando que o avaliador pode executar para validar o criterio de TDD do nivel 3.
 
+Todos os comandos abaixo assumem execucao na raiz do repositorio.
+
 Via Docker:
 
 ```bash
@@ -210,7 +224,7 @@ Resposta:
       "role": "ADMIN"
     }
   },
-  "request_id": null
+  "request_id": "9a3c1d4f-4ad4-4f24-8a76-7b8c0f0d1234"
 }
 ```
 
@@ -322,7 +336,7 @@ Regras:
       "failure_reason": "Gateway 2 authorization failed"
     }
   },
-  "request_id": null
+  "request_id": "9a3c1d4f-4ad4-4f24-8a76-7b8c0f0d1234"
 }
 ```
 
@@ -352,4 +366,4 @@ Codigos usados:
 - idempotencia para criacao de compra
 - filtros adicionais nas listagens
 - observabilidade mais detalhada
-- CI automatizado
+- testes de contrato para os gateways externos
