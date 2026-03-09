@@ -1,0 +1,35 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: betalent-app
+    ports:
+      - "8000:8000"
+    depends_on:
+      mysql:
+        condition: service_healthy
+      gateway-mock:
+        condition: service_started
+
+  mysql:
+    image: mysql:8.0
+    container_name: betalent-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: betalent
+      MYSQL_USER: betalent
+      MYSQL_PASSWORD: betalent
+    ports:
+      - "3306:3306"
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      timeout: 5s
+      retries: 10
+
+  gateway-mock:
+    image: matheusprotzen/gateways-mock
+    container_name: betalent-gateway-mock
+    ports:
+      - "3001:3001"
+      - "3002:3002"
