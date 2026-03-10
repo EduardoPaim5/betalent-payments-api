@@ -58,7 +58,7 @@ class ProcessPaymentService
             ->get();
 
         if ($gateways->isEmpty()) {
-            $failedTransaction = $this->markTransactionAsFailed($transaction, 'No active gateways available.');
+            $failedTransaction = $this->transactionStateManager->markAsFailed($transaction, 'No active gateways available.');
 
             Log::warning('payment_processing_failed_without_gateway', [
                 'transaction_id' => $failedTransaction->id,
