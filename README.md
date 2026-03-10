@@ -92,7 +92,6 @@ Client
 - `failed`
 - `refund_processing`
 - `refunded`
-- `refund_failed`
 
 ### Reembolso
 
