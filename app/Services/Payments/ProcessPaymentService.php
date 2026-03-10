@@ -3,8 +3,10 @@
 namespace App\Services\Payments;
 
 use App\Exceptions\GatewayClientException;
+use App\Exceptions\GatewayResolutionException;
 use App\Models\Gateway;
 use App\Services\Payments\Gateways\GatewayResolver;
+use App\Services\Payments\Gateways\GatewayResult;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Log;
 
@@ -36,12 +38,18 @@ class ProcessPaymentService
             }
         }
 
-        $transaction = $this->transactionCreator->createProcessingTransaction(
+        $creationResult = $this->transactionCreator->createProcessingTransaction(
             $payload,
             $groupedItems,
             $idempotencyKey,
             $idempotencyHash,
         );
+        $transaction = $creationResult->transaction;
+
+        if ($creationResult->replayed) {
+            return new PaymentExecutionResult($transaction, true);
+        }
+
         $transaction->loadMissing('client');
 
         $gateways = Gateway::query()
@@ -72,9 +80,8 @@ class ProcessPaymentService
                 'attempt_order' => $attemptOrder,
             ]);
 
-            $adapter = $this->resolver->resolve($gateway);
-
             try {
+                $adapter = $this->resolver->resolve($gateway);
                 $result = $adapter->authorizePayment($gateway, [
                     'amount' => $transaction->amount,
                     'name' => $transaction->client->name,
@@ -83,8 +90,8 @@ class ProcessPaymentService
                     'cvv' => $payload['cvv'],
                     'correlationId' => $transaction->correlation_id,
                 ]);
-            } catch (ConnectionException|GatewayClientException $exception) {
-                $result = \App\Services\Payments\Gateways\GatewayResult::technicalFailure(
+            } catch (ConnectionException|GatewayClientException|GatewayResolutionException $exception) {
+                $result = GatewayResult::technicalFailure(
                     message: 'Gateway request failed.',
                     rawResponse: ['exception' => class_basename($exception)],
                 );

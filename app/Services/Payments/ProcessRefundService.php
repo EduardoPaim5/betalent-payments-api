@@ -5,6 +5,7 @@ namespace App\Services\Payments;
 use App\Enums\RefundStatus;
 use App\Enums\TransactionStatus;
 use App\Exceptions\GatewayClientException;
+use App\Exceptions\GatewayResolutionException;
 use App\Models\Refund;
 use App\Models\Transaction;
 use App\Services\Payments\Concerns\RedactsGatewayPayload;
@@ -69,11 +70,10 @@ class ProcessRefundService
             'gateway_id' => $lockedTransaction->gateway_id,
         ]);
 
-        $adapter = $this->resolver->resolve($lockedTransaction->gateway);
-
         try {
+            $adapter = $this->resolver->resolve($lockedTransaction->gateway);
             $result = $adapter->refund($lockedTransaction->gateway, $lockedTransaction->external_id);
-        } catch (ConnectionException|GatewayClientException $exception) {
+        } catch (ConnectionException|GatewayClientException|GatewayResolutionException $exception) {
             $result = GatewayResult::technicalFailure(
                 message: 'Gateway refund request failed.',
                 rawResponse: ['exception' => class_basename($exception)],

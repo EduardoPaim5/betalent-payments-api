@@ -17,6 +17,7 @@ services:
       DB_DATABASE: betalent
       DB_USERNAME: betalent
       DB_PASSWORD: betalent
+      # Credenciais do gateway-mock do desafio; nao sao segredos de producao.
       GATEWAY_1_BASE_URL: http://gateway-mock:3001
       GATEWAY_1_EMAIL: dev@betalent.tech
       GATEWAY_1_TOKEN: FEC9BB078BF338F464F96B48089EB498

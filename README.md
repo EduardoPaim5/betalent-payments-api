@@ -308,11 +308,19 @@ O repositório demonstra objetivamente uma suíte de testes cobrindo os comporta
 
 O estado atual do código, por si só, não comprova que todo o desenvolvimento ocorreu em TDD. Essa evidência depende do histórico Git e da sequência de commits ou PRs. No estado atual da entrega, a evidência verificável é a cobertura automatizada dos fluxos acima.
 
+## Limites conhecidos do design
+
+- adicionar um novo gateway continua exigindo três passos explícitos: criar o adapter, registrar credenciais/configuração e incluir o adapter no `GatewayResolver` via `AppServiceProvider`
+- replays idempotentes podem retornar a transação ainda em `processing` com HTTP `202` quando outro request concorrente já venceu a criação e ainda está concluindo a cobrança; nesse caso o cliente deve repetir a consulta ou buscar o detalhe da transação depois
+- a sanitização de payloads de gateway é centralizada e cobre chaves sensíveis conhecidas por nome/padrão, mas não substitui disciplina de logging fora dos pontos que já usam o redactor
+- a suíte `php artisan test` é a validação rápida do domínio; as verificações com MySQL real e mocks HTTP reais continuam separadas nas suítes `CriticalMySql` e `Integration`
+
 Arquivo de ambiente:
 
 - Use `.env.example` como base para o fluxo Docker
 - Para execução no host, ajuste `DB_HOST` e `GATEWAY_*_BASE_URL` para endereços acessíveis fora da rede do Compose
 - No fluxo com Docker, o entrypoint cria `.env` automaticamente se o arquivo não existir
+- Os valores `GATEWAY_*` versionados neste repositório são apenas credenciais públicas do `gateway-mock` usado no desafio e não devem ser tratados como segredos de produção
 
 ## Credenciais seed
 

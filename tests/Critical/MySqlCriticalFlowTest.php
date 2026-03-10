@@ -147,7 +147,9 @@ class MySqlCriticalFlowTest extends TestCase
         $firstTransaction = $creator->createProcessingTransaction($payload, $groupedItems, $idempotencyKey, $idempotencyHash);
         $secondTransaction = $creator->createProcessingTransaction($payload, $groupedItems, $idempotencyKey, $idempotencyHash);
 
-        $this->assertSame($firstTransaction->id, $secondTransaction->id);
+        $this->assertFalse($firstTransaction->replayed);
+        $this->assertTrue($secondTransaction->replayed);
+        $this->assertSame($firstTransaction->transaction->id, $secondTransaction->transaction->id);
         $this->assertSame(1, Transaction::query()->count());
     }
 

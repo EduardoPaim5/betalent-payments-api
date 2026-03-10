@@ -22,10 +22,13 @@ class RedactsGatewayPayloadTest extends TestCase
         $redacted = $redactor->redact([
             'numeroCartao' => '5569000000006063',
             'cardNumber' => '4111000000006063',
+            'card_number' => '4111000000006063',
             'cvv' => '100',
             'Gateway-Auth-Token' => 'token-123',
+            'Gateway_Auth_Secret' => 'secret-456',
+            'Authorization' => 'Bearer token-123',
             'nested' => [
-                'auth_secret' => 'secret-123',
+                'auth.token' => 'secret-123',
                 'numero_cartao' => '1234567890123456',
                 'safe' => 'value',
             ],

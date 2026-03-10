@@ -25,9 +25,9 @@ class PaymentTransactionCreator
         array $groupedItems,
         ?string $idempotencyKey,
         ?string $idempotencyHash,
-    ): Transaction {
+    ): TransactionCreationResult {
         try {
-            return DB::transaction(function () use ($payload, $groupedItems, $idempotencyKey, $idempotencyHash): Transaction {
+            $transaction = DB::transaction(function () use ($payload, $groupedItems, $idempotencyKey, $idempotencyHash): Transaction {
                 $client = Client::query()->firstOrCreate(
                     ['email' => $payload['email']],
                     ['name' => $payload['name']],
@@ -63,6 +63,8 @@ class PaymentTransactionCreator
 
                 return $transaction->load(['client', 'products']);
             });
+
+            return new TransactionCreationResult($transaction);
         } catch (QueryException $exception) {
             if ($idempotencyKey === null || ! $this->idempotency->isDuplicateIdempotencyKey($exception)) {
                 throw $exception;
@@ -70,7 +72,7 @@ class PaymentTransactionCreator
 
             $existingTransaction = $this->idempotency->findExistingTransaction($idempotencyKey, $idempotencyHash);
             if ($existingTransaction !== null) {
-                return $existingTransaction;
+                return new TransactionCreationResult($existingTransaction, true);
             }
 
             throw $exception;

@@ -2,8 +2,8 @@
 
 namespace App\Services\Payments\Gateways;
 
+use App\Exceptions\GatewayResolutionException;
 use App\Models\Gateway;
-use RuntimeException;
 
 class GatewayResolver
 {
@@ -20,6 +20,6 @@ class GatewayResolver
             }
         }
 
-        throw new RuntimeException('Gateway adapter not found for '.$gateway->code);
+        throw new GatewayResolutionException('Gateway adapter not found for '.$gateway->code);
     }
 }
