@@ -11,10 +11,10 @@ class AppServiceProvider extends ServiceProvider
 {
     public function register(): void
     {
-        $this->app->singleton(GatewayResolver::class, function () {
+        $this->app->singleton(GatewayResolver::class, function ($app) {
             return new GatewayResolver([
-                new Gateway1Adapter(),
-                new Gateway2Adapter(),
+                $app->make(Gateway1Adapter::class),
+                $app->make(Gateway2Adapter::class),
             ]);
         });
     }

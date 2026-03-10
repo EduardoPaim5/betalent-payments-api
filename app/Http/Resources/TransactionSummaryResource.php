@@ -14,7 +14,6 @@ class TransactionSummaryResource extends JsonResource
             'status' => $this->status,
             'amount' => (int) $this->amount,
             'gateway_id' => $this->gateway_id,
-            'external_id' => $this->external_id,
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,
         ];

@@ -13,7 +13,6 @@ class RefundResource extends JsonResource
             'id' => $this->id,
             'transaction_id' => $this->transaction_id,
             'gateway_id' => $this->gateway_id,
-            'external_refund_id' => $this->external_refund_id,
             'status' => $this->status,
             'message' => $this->message,
             'created_at' => $this->created_at,

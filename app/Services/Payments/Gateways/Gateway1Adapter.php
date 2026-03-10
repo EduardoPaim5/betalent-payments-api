@@ -4,8 +4,10 @@ namespace App\Services\Payments\Gateways;
 
 use App\Enums\GatewayErrorType;
 use App\Models\Gateway;
-use Illuminate\Support\Facades\Http;
+use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Support\Arr;
+use Illuminate\Support\Facades\Http;
+use RuntimeException;
 
 class Gateway1Adapter implements PaymentGatewayPort
 {
@@ -16,10 +18,14 @@ class Gateway1Adapter implements PaymentGatewayPort
 
     public function authorizePayment(Gateway $gateway, array $payload): GatewayResult
     {
-        $baseUrl = config('services.gateways.gateway_1.base_url');
+        $baseUrl = $this->baseUrl();
         $token = $this->login($baseUrl);
 
-        $response = Http::withToken($token)
+        $response = $this->httpClient()
+            ->withToken($token)
+            ->withHeaders([
+                'X-Correlation-ID' => (string) $payload['correlationId'],
+            ])
             ->post($baseUrl.'/transactions', [
                 'amount' => $payload['amount'],
                 'name' => $payload['name'],
@@ -31,18 +37,13 @@ class Gateway1Adapter implements PaymentGatewayPort
         $data = $response->json() ?: [];
 
         if ($response->successful()) {
-            $externalId = $this->extractExternalId($data, $response)
-                ?? $this->resolveExternalIdFromListing($baseUrl, $token, $payload);
+            $externalId = $this->extractExternalId($data, $response);
 
             if ($externalId === null) {
-                return new GatewayResult(
-                    false,
-                    null,
-                    'declined',
-                    'Gateway 1 approved without external transaction id',
-                    GatewayErrorType::TECHNICAL->value,
-                    $data,
-                    $response->status(),
+                return GatewayResult::technicalFailure(
+                    message: 'Gateway 1 approved without external transaction id',
+                    rawResponse: $data,
+                    statusCode: $response->status(),
                 );
             }
 
@@ -70,10 +71,12 @@ class Gateway1Adapter implements PaymentGatewayPort
 
     public function refund(Gateway $gateway, string $externalTransactionId): GatewayResult
     {
-        $baseUrl = config('services.gateways.gateway_1.base_url');
+        $baseUrl = $this->baseUrl();
         $token = $this->login($baseUrl);
 
-        $response = Http::withToken($token)->post($baseUrl.'/transactions/'.$externalTransactionId.'/charge_back');
+        $response = $this->httpClient()
+            ->withToken($token)
+            ->post($baseUrl.'/transactions/'.$externalTransactionId.'/charge_back');
         $data = $response->json() ?: [];
 
         if ($response->successful()) {
@@ -101,52 +104,46 @@ class Gateway1Adapter implements PaymentGatewayPort
 
     private function login(string $baseUrl): string
     {
-        $response = Http::post($baseUrl.'/login', [
-            'email' => config('services.gateways.gateway_1.email'),
-            'token' => config('services.gateways.gateway_1.token'),
+        $email = (string) config('services.gateways.gateway_1.email');
+        $token = (string) config('services.gateways.gateway_1.token');
+
+        if ($email === '' || $token === '') {
+            throw new RuntimeException('Gateway 1 credentials are not configured.');
+        }
+
+        $response = $this->httpClient()->post($baseUrl.'/login', [
+            'email' => $email,
+            'token' => $token,
         ]);
 
-        return (string) ($response->json('token') ?? '');
-    }
-
-    private function resolveExternalIdFromListing(string $baseUrl, string $token, array $payload): ?string
-    {
-        $response = Http::withToken($token)->get($baseUrl.'/transactions');
         if (! $response->successful()) {
-            return null;
+            throw new RuntimeException('Gateway 1 authentication failed.');
         }
 
-        foreach ($this->normalizeTransactions($response->json() ?: []) as $tx) {
-            $amount = Arr::get($tx, 'amount');
-            $email = Arr::get($tx, 'email');
-            $name = Arr::get($tx, 'name');
-
-            if ((int) $amount === (int) $payload['amount']
-                && (string) $email === (string) $payload['email']
-                && (string) $name === (string) $payload['name']) {
-                return $this->extractExternalId($tx, $response);
-            }
+        $token = (string) ($response->json('token') ?? '');
+        if ($token === '') {
+            throw new RuntimeException('Gateway 1 authentication token is missing.');
         }
 
-        return null;
+        return $token;
     }
 
-    private function normalizeTransactions(array $data): array
+    private function baseUrl(): string
     {
-        $candidates = [
-            $data,
-            Arr::get($data, 'transactions', []),
-            Arr::get($data, 'data', []),
-            Arr::get($data, 'items', []),
-        ];
-
-        foreach ($candidates as $candidate) {
-            if (is_array($candidate) && array_is_list($candidate)) {
-                return array_reverse($candidate);
-            }
+        $baseUrl = rtrim((string) config('services.gateways.gateway_1.base_url'), '/');
+        if ($baseUrl === '') {
+            throw new RuntimeException('Gateway 1 base URL is not configured.');
         }
 
-        return [];
+        return $baseUrl;
+    }
+
+    private function httpClient(): PendingRequest
+    {
+        return Http::acceptJson()
+            ->asJson()
+            ->connectTimeout(2)
+            ->timeout(5);
     }
 
     private function extractExternalId(array $data, \Illuminate\Http\Client\Response $response): ?string

@@ -5,20 +5,24 @@ namespace App\Services\Payments;
 use App\Enums\TransactionStatus;
 use App\Models\Client;
 use App\Models\Gateway;
-use App\Models\Transaction;
 use App\Models\Product;
+use App\Models\Transaction;
+use App\Services\Payments\Concerns\RedactsGatewayPayload;
 use App\Services\Payments\Gateways\GatewayResolver;
+use App\Services\Payments\Gateways\GatewayResult;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
+use Throwable;
 
 class ProcessPaymentService
 {
-    public function __construct(private GatewayResolver $resolver)
-    {
-    }
+    use RedactsGatewayPayload;
+
+    public function __construct(private GatewayResolver $resolver) {}
 
     /**
-     * @param array<int, array{product_id:int, quantity:int}> $items
+     * @param  array<int, array{product_id:int, quantity:int}>  $items
      */
     public function execute(array $payload, array $items): Transaction
     {
@@ -59,6 +63,7 @@ class ProcessPaymentService
                 'status' => TransactionStatus::PROCESSING->value,
                 'amount' => $total,
                 'card_last_numbers' => substr($payload['card_number'], -4),
+                'correlation_id' => (string) Str::uuid(),
             ]);
 
             Log::info('payment_processing_started', [
@@ -81,6 +86,19 @@ class ProcessPaymentService
                 ->orderBy('priority')
                 ->get();
 
+            if ($gateways->isEmpty()) {
+                $transaction->update([
+                    'status' => TransactionStatus::FAILED->value,
+                    'failure_reason' => 'No active gateways available.',
+                ]);
+
+                Log::warning('payment_processing_failed_without_gateway', [
+                    'transaction_id' => $transaction->id,
+                ]);
+
+                return $transaction->fresh(['client', 'products', 'attempts']);
+            }
+
             $attemptOrder = 0;
             $lastError = null;
 
@@ -94,14 +112,29 @@ class ProcessPaymentService
                     'attempt_order' => $attemptOrder,
                 ]);
 
-                $adapter = $this->resolver->resolve($gateway);
-                $result = $adapter->authorizePayment($gateway, [
-                    'amount' => $total,
-                    'name' => $client->name,
-                    'email' => $client->email,
-                    'cardNumber' => $payload['card_number'],
-                    'cvv' => $payload['cvv'],
-                ]);
+                try {
+                    $adapter = $this->resolver->resolve($gateway);
+                    $result = $adapter->authorizePayment($gateway, [
+                        'amount' => $total,
+                        'name' => $client->name,
+                        'email' => $client->email,
+                        'cardNumber' => $payload['card_number'],
+                        'cvv' => $payload['cvv'],
+                        'correlationId' => $transaction->correlation_id,
+                    ]);
+                } catch (Throwable $exception) {
+                    $result = GatewayResult::technicalFailure(
+                        message: 'Gateway request failed.',
+                        rawResponse: ['exception' => class_basename($exception)],
+                    );
+
+                    Log::error('payment_attempt_exception', [
+                        'transaction_id' => $transaction->id,
+                        'gateway' => $gateway->code,
+                        'attempt_order' => $attemptOrder,
+                        'exception' => $exception::class,
+                    ]);
+                }
 
                 $latency = (int) ((microtime(true) - $start) * 1000);
 
@@ -114,7 +147,7 @@ class ProcessPaymentService
                     'message' => $result->message,
                     'external_id' => $result->externalId ?: null,
                     'latency_ms' => $latency,
-                    'raw_response' => $this->maskRawResponse($result->rawResponse),
+                    'raw_response' => $this->redactGatewayPayload($result->rawResponse),
                     'created_at' => now(),
                 ]);
 
@@ -162,12 +195,5 @@ class ProcessPaymentService
 
             return $transaction->fresh(['client', 'products', 'attempts']);
         });
-    }
-
-    private function maskRawResponse(array $data): array
-    {
-        unset($data['cvv'], $data['cardNumber'], $data['numeroCartao']);
-
-        return $data;
     }
 }

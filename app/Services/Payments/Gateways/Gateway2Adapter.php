@@ -4,8 +4,10 @@ namespace App\Services\Payments\Gateways;
 
 use App\Enums\GatewayErrorType;
 use App\Models\Gateway;
+use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Http;
+use RuntimeException;
 
 class Gateway2Adapter implements PaymentGatewayPort
 {
@@ -16,9 +18,12 @@ class Gateway2Adapter implements PaymentGatewayPort
 
     public function authorizePayment(Gateway $gateway, array $payload): GatewayResult
     {
-        $baseUrl = config('services.gateways.gateway_2.base_url');
+        $baseUrl = $this->baseUrl();
 
-        $response = Http::withHeaders($this->headers())
+        $response = $this->httpClient()
+            ->withHeaders($this->headers([
+                'X-Correlation-ID' => (string) $payload['correlationId'],
+            ]))
             ->post($baseUrl.'/transacoes', [
                 'valor' => $payload['amount'],
                 'nome' => $payload['name'],
@@ -30,18 +35,13 @@ class Gateway2Adapter implements PaymentGatewayPort
         $data = $response->json() ?: [];
 
         if ($response->successful()) {
-            $externalId = $this->extractExternalId($data, $response)
-                ?? $this->resolveExternalIdFromListing($baseUrl, $payload);
+            $externalId = $this->extractExternalId($data, $response);
 
             if ($externalId === null) {
-                return new GatewayResult(
-                    false,
-                    null,
-                    'declined',
-                    'Gateway 2 approved without external transaction id',
-                    GatewayErrorType::TECHNICAL->value,
-                    $data,
-                    $response->status(),
+                return GatewayResult::technicalFailure(
+                    message: 'Gateway 2 approved without external transaction id',
+                    rawResponse: $data,
+                    statusCode: $response->status(),
                 );
             }
 
@@ -69,9 +69,10 @@ class Gateway2Adapter implements PaymentGatewayPort
 
     public function refund(Gateway $gateway, string $externalTransactionId): GatewayResult
     {
-        $baseUrl = config('services.gateways.gateway_2.base_url');
+        $baseUrl = $this->baseUrl();
 
-        $response = Http::withHeaders($this->headers())
+        $response = $this->httpClient()
+            ->withHeaders($this->headers())
             ->post($baseUrl.'/transacoes/reembolso', [
                 'id' => $externalTransactionId,
             ]);
@@ -101,53 +102,37 @@ class Gateway2Adapter implements PaymentGatewayPort
         );
     }
 
-    private function headers(): array
+    private function headers(array $extraHeaders = []): array
     {
-        return [
+        $token = (string) config('services.gateways.gateway_2.auth_token');
+        $secret = (string) config('services.gateways.gateway_2.auth_secret');
+
+        if ($token === '' || $secret === '') {
+            throw new RuntimeException('Gateway 2 credentials are not configured.');
+        }
+
+        return array_merge([
             'Gateway-Auth-Token' => config('services.gateways.gateway_2.auth_token'),
             'Gateway-Auth-Secret' => config('services.gateways.gateway_2.auth_secret'),
-        ];
+        ], $extraHeaders);
     }
 
-    private function resolveExternalIdFromListing(string $baseUrl, array $payload): ?string
+    private function baseUrl(): string
     {
-        $response = Http::withHeaders($this->headers())->get($baseUrl.'/transacoes');
-        if (! $response->successful()) {
-            return null;
+        $baseUrl = rtrim((string) config('services.gateways.gateway_2.base_url'), '/');
+        if ($baseUrl === '') {
+            throw new RuntimeException('Gateway 2 base URL is not configured.');
         }
 
-        foreach ($this->normalizeTransactions($response->json() ?: []) as $tx) {
-            $amount = Arr::get($tx, 'valor', Arr::get($tx, 'amount'));
-            $email = Arr::get($tx, 'email');
-            $name = Arr::get($tx, 'nome', Arr::get($tx, 'name'));
-
-            if ((int) $amount === (int) $payload['amount']
-                && (string) $email === (string) $payload['email']
-                && (string) $name === (string) $payload['name']) {
-                return $this->extractExternalId($tx, $response);
-            }
-        }
-
-        return null;
+        return $baseUrl;
     }
 
-    private function normalizeTransactions(array $data): array
+    private function httpClient(): PendingRequest
     {
-        $candidates = [
-            $data,
-            Arr::get($data, 'transacoes', []),
-            Arr::get($data, 'transactions', []),
-            Arr::get($data, 'data', []),
-            Arr::get($data, 'items', []),
-        ];
-
-        foreach ($candidates as $candidate) {
-            if (is_array($candidate) && array_is_list($candidate)) {
-                return array_reverse($candidate);
-            }
-        }
-
-        return [];
+        return Http::acceptJson()
+            ->asJson()
+            ->connectTimeout(2)
+            ->timeout(5);
     }
 
     private function extractExternalId(array $data, \Illuminate\Http\Client\Response $response): ?string

@@ -18,7 +18,6 @@ class GatewayAttemptResource extends JsonResource
             'error_type' => $this->error_type,
             'status_code' => $this->status_code,
             'message' => $this->message,
-            'external_id' => $this->external_id,
             'latency_ms' => $this->latency_ms,
             'created_at' => $this->created_at,
         ];

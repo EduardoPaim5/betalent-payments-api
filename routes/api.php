@@ -14,7 +14,14 @@ Route::post('/login', [AuthController::class, 'login']);
 Route::post('/purchases', [PurchaseController::class, 'store']);
 
 Route::middleware('auth:sanctum')->group(function (): void {
-    Route::get('/gateways', [GatewayController::class, 'index']);
+    Route::middleware('role:ADMIN,MANAGER,FINANCE')->group(function (): void {
+        Route::get('/gateways', [GatewayController::class, 'index']);
+        Route::get('/clients', [ClientController::class, 'index']);
+        Route::get('/clients/{client}', [ClientController::class, 'show']);
+
+        Route::get('/transactions', [TransactionController::class, 'index']);
+        Route::get('/transactions/{transaction}', [TransactionController::class, 'show']);
+    });
 
     Route::middleware('role:ADMIN')->group(function (): void {
         Route::patch('/gateways/{gateway}/priority', [GatewayController::class, 'updatePriority']);
@@ -28,12 +35,6 @@ Route::middleware('auth:sanctum')->group(function (): void {
     Route::middleware('role:ADMIN,MANAGER,FINANCE')->group(function (): void {
         Route::apiResource('products', ProductController::class);
     });
-
-    Route::get('/clients', [ClientController::class, 'index']);
-    Route::get('/clients/{client}', [ClientController::class, 'show']);
-
-    Route::get('/transactions', [TransactionController::class, 'index']);
-    Route::get('/transactions/{transaction}', [TransactionController::class, 'show']);
 
     Route::middleware('role:ADMIN,FINANCE')->group(function (): void {
         Route::post('/refunds', [RefundController::class, 'store']);

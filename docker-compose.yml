@@ -4,6 +4,25 @@ services:
       context: .
       dockerfile: Dockerfile
     container_name: betalent-app
+    environment:
+      APP_ENV: local
+      APP_DEBUG: "true"
+      APP_URL: http://localhost:8000
+      APP_PORT: 8000
+      APP_SEED_MODE: if-empty
+      DB_WAIT_ATTEMPTS: 30
+      DB_CONNECTION: mysql
+      DB_HOST: mysql
+      DB_PORT: 3306
+      DB_DATABASE: betalent
+      DB_USERNAME: betalent
+      DB_PASSWORD: betalent
+      GATEWAY_1_BASE_URL: http://gateway-mock:3001
+      GATEWAY_1_EMAIL: dev@betalent.tech
+      GATEWAY_1_TOKEN: FEC9BB078BF338F464F96B48089EB498
+      GATEWAY_2_BASE_URL: http://gateway-mock:3002
+      GATEWAY_2_AUTH_TOKEN: tk_f2198cc671b5289fa856
+      GATEWAY_2_AUTH_SECRET: 3d15e8ed6131446ea7e3456728b1211f
     ports:
       - "8000:8000"
     depends_on:
@@ -11,6 +30,12 @@ services:
         condition: service_healthy
       gateway-mock:
         condition: service_started
+    healthcheck:
+      test: ["CMD", "php", "-r", "$$socket = @fsockopen('127.0.0.1', 8000); exit($$socket ? 0 : 1);"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
 
   mysql:
     image: mysql:8.0
@@ -26,6 +51,8 @@ services:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
       timeout: 5s
       retries: 10
+    volumes:
+      - mysql_data:/var/lib/mysql
 
   gateway-mock:
     image: matheusprotzen/gateways-mock
@@ -33,3 +60,6 @@ services:
     ports:
       - "3001:3001"
       - "3002:3002"
+
+volumes:
+  mysql_data:

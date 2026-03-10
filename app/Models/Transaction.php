@@ -21,6 +21,7 @@ class Transaction extends Model
         'client_id',
         'gateway_id',
         'external_id',
+        'correlation_id',
         'status',
         'amount',
         'card_last_numbers',

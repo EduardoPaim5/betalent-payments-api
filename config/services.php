@@ -24,14 +24,14 @@ return [
 
     'gateways' => [
         'gateway_1' => [
-            'base_url' => env('GATEWAY_1_BASE_URL', 'http://localhost:3001'),
-            'email' => env('GATEWAY_1_EMAIL', 'dev@betalent.tech'),
-            'token' => env('GATEWAY_1_TOKEN', 'FEC9BB078BF338F464F96B48089EB498'),
+            'base_url' => env('GATEWAY_1_BASE_URL'),
+            'email' => env('GATEWAY_1_EMAIL'),
+            'token' => env('GATEWAY_1_TOKEN'),
         ],
         'gateway_2' => [
-            'base_url' => env('GATEWAY_2_BASE_URL', 'http://localhost:3002'),
-            'auth_token' => env('GATEWAY_2_AUTH_TOKEN', 'tk_f2198cc671b5289fa856'),
-            'auth_secret' => env('GATEWAY_2_AUTH_SECRET', '3d15e8ed6131446ea7e3456728b1211f'),
+            'base_url' => env('GATEWAY_2_BASE_URL'),
+            'auth_token' => env('GATEWAY_2_AUTH_TOKEN'),
+            'auth_secret' => env('GATEWAY_2_AUTH_SECRET'),
         ],
     ],
 ];

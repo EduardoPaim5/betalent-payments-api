@@ -12,13 +12,12 @@ curl http://localhost:8000/up
 docker compose exec app php artisan test
 ```
 
-Se o seu ambiente usar o binário legado, substitua `docker compose` por `docker-compose`:
+Observações do ambiente Docker:
 
-```bash
-docker-compose up -d --build
-curl http://localhost:8000/up
-docker-compose exec app php artisan test
-```
+- o container `app` usa uma `APP_KEY` fixa de desenvolvimento via `docker-compose.yml`, então recriar o container não invalida os tokens por rotação acidental de chave
+- o MySQL usa volume nomeado (`mysql_data`), então os dados persistem entre `docker compose down` e `docker compose up`
+- o seed automático acontece apenas quando o banco está vazio; reiniciar a API não deve sobrescrever usuários e produtos já existentes
+- para reiniciar do zero, use `docker compose down -v`
 
 ## Requisitos
 
@@ -71,6 +70,8 @@ Client
 - A transação só vira `paid` quando existir aprovação com `external_id`
 - Reembolso só é permitido para transações `paid`
 - Reembolso usa obrigatoriamente o gateway vencedor da compra
+- Exceções técnicas em um gateway são registradas como falha e não interrompem o fallback
+- `external_id` só é aceito quando retornado pelo gateway; o sistema não faz correlação por listagem externa
 - Cliente é criado ou reaproveitado automaticamente pelo email
 
 ## Status
@@ -80,6 +81,7 @@ Client
 - `processing`
 - `paid`
 - `failed`
+- `refund_processing`
 - `refunded`
 - `refund_failed`
 
@@ -128,13 +130,15 @@ Serviços:
 - Gateway 2 mock: `http://localhost:3002`
 - MySQL: `localhost:3306`
 
+Comportamento do bootstrap da API:
+
+- o container espera o MySQL ficar acessível antes de rodar `migrate`
+- o seed roda apenas no modo `if-empty`, evitando resetar os dados a cada restart
+- a aplicação sobe como `www-data`, não como `root`
+
 ## Como rodar os testes
 
-O caminho principal de validação do projeto é via Docker. Este é o comando que o avaliador pode executar para validar o critério de TDD do nível 3.
-
-Todos os comandos abaixo assumem execução na raiz do repositório.
-
-Via Docker:
+O caminho principal de validação do projeto é via Docker.
 
 ```bash
 docker compose up -d --build
@@ -147,23 +151,17 @@ Se a stack já estiver de pé:
 docker compose exec app php artisan test
 ```
 
-Se o seu ambiente usar o binário legado:
-
-```bash
-docker-compose exec app php artisan test
-```
-
-Para rebuildar a aplicação antes de rodar novamente:
-
-```bash
-docker compose up -d --build
-docker compose exec app php artisan test
-```
-
-Opcionalmente, para rodar apenas testes de feature:
+Para rodar apenas feature tests:
 
 ```bash
 docker compose exec app php artisan test --testsuite=Feature
+```
+
+Se quiser resetar completamente a base persistida do Docker:
+
+```bash
+docker compose down -v
+docker compose up -d --build
 ```
 
 No host:
@@ -172,14 +170,14 @@ No host:
 php -d extension=pdo_sqlite -d extension=sqlite3 vendor/bin/phpunit --testdox
 ```
 
-CI:
+Se `pdo_sqlite` e `sqlite3` não estiverem habilitados no host, use apenas a execução via Docker.
 
-- Workflow em `.github/workflows/tests.yml`
-- Executa `composer install`, `php artisan key:generate` e `php artisan test`
+Se o seu ambiente usar o binário legado, substitua `docker compose` por `docker-compose`.
 
 Arquivo de ambiente:
 
-- Use `.env.example` como base para execução local
+- Use `.env.example` como base para o fluxo Docker
+- Para execução no host, ajuste `DB_HOST` e `GATEWAY_*_BASE_URL` para endereços acessíveis fora da rede do Compose
 - No fluxo com Docker, o entrypoint cria `.env` automaticamente se o arquivo não existir
 
 ## Credenciais seed
@@ -255,7 +253,7 @@ Authorization: Bearer <token>
 
 ### Gateways
 
-- `GET /api/gateways`
+- `GET /api/gateways` (`ADMIN`, `MANAGER`, `FINANCE`)
 - `PATCH /api/gateways/{gateway}/priority` (`ADMIN`)
 - `PATCH /api/gateways/{gateway}/status` (`ADMIN`)
 
@@ -277,10 +275,10 @@ Authorization: Bearer <token>
 
 ### Clientes e compras
 
-- `GET /api/clients`
-- `GET /api/clients/{client}`
-- `GET /api/transactions`
-- `GET /api/transactions/{transaction}`
+- `GET /api/clients` (`ADMIN`, `MANAGER`, `FINANCE`)
+- `GET /api/clients/{client}` (`ADMIN`, `MANAGER`, `FINANCE`)
+- `GET /api/transactions` (`ADMIN`, `MANAGER`, `FINANCE`)
+- `GET /api/transactions/{transaction}` (`ADMIN`, `MANAGER`, `FINANCE`)
 
 Filtros disponíveis:
 
@@ -333,8 +331,9 @@ Regras:
 Regras:
 
 - apenas transações `paid` podem ser reembolsadas
-- transações `failed`, `refunded` e `refund_failed` são bloqueadas
-- reembolso duplicado não é permitido porque o status da transação é atualizado após o primeiro processamento
+- transações `failed`, `refund_processing` e `refunded` são bloqueadas
+- falha de reembolso mantém a transação em `paid` e registra a tentativa como `refund_failed`
+- reembolso duplicado não é permitido enquanto existir um reembolso `processing` ou `refunded`
 
 ## Resposta de erro
 
@@ -360,22 +359,3 @@ Códigos usados:
 - `resource_not_found`
 - `invalid_credentials`
 - `internal_error`
-
-## O que foi validado
-
-- login por Sanctum
-- CRUD básico de usuários e produtos
-- ativação e reordenação de gateways
-- compra com múltiplos produtos
-- fallback entre gateways
-- persistência de `external_id`
-- reembolso no gateway correto
-- `request_id` em header e payload das respostas da API
-- serialização controlada com API Resources
-
-## Melhorias futuras
-
-- idempotência para criação de compra
-- filtros adicionais nas listagens
-- observabilidade mais detalhada
-- testes de contrato para os gateways externos

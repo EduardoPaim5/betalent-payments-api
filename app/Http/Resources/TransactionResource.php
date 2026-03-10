@@ -13,7 +13,6 @@ class TransactionResource extends JsonResource
             'id' => $this->id,
             'client_id' => $this->client_id,
             'gateway_id' => $this->gateway_id,
-            'external_id' => $this->external_id,
             'status' => $this->status,
             'amount' => (int) $this->amount,
             'card_last_numbers' => $this->card_last_numbers,

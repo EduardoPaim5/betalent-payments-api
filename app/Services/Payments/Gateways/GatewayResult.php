@@ -2,6 +2,8 @@
 
 namespace App\Services\Payments\Gateways;
 
+use App\Enums\GatewayErrorType;
+
 class GatewayResult
 {
     public function __construct(
@@ -25,5 +27,21 @@ class GatewayResult
             'statusCode' => $this->statusCode,
             'rawResponse' => $this->rawResponse,
         ];
+    }
+
+    public static function technicalFailure(
+        string $message = 'Gateway request failed.',
+        array $rawResponse = [],
+        ?int $statusCode = null,
+    ): self {
+        return new self(
+            false,
+            null,
+            'declined',
+            $message,
+            GatewayErrorType::TECHNICAL->value,
+            $rawResponse,
+            $statusCode,
+        );
     }
 }
