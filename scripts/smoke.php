@@ -28,6 +28,14 @@ $headers = [
     'Authorization: Bearer '.$token,
 ];
 
+$productsResponse = request('GET', $baseUrl.'/api/products?per_page=1', null, $headers);
+assertStatus(200, $productsResponse, 'product listing');
+
+$productId = $productsResponse['body']['data']['products']['data'][0]['id'] ?? null;
+if (! is_int($productId)) {
+    fail('product listing did not return a seed product id');
+}
+
 $purchasePayload = [
     'client' => [
         'name' => 'Smoke Tester',
@@ -39,7 +47,7 @@ $purchasePayload = [
     ],
     'items' => [
         [
-            'product_id' => 1,
+            'product_id' => $productId,
             'quantity' => 1,
         ],
     ],

@@ -14,6 +14,9 @@
         <testsuite name="Integration">
             <directory>tests/Integration</directory>
         </testsuite>
+        <testsuite name="CriticalMySql">
+            <directory>tests/Critical</directory>
+        </testsuite>
     </testsuites>
     <source>
         <include>

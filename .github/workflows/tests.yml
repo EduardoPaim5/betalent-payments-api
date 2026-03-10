@@ -63,6 +63,21 @@ jobs:
       - name: Run app test suite inside Docker
         run: docker compose exec -T app php artisan test
 
+      - name: Prepare isolated MySQL test database
+        run: docker compose exec -T mysql mysql -uroot -proot -e "CREATE DATABASE IF NOT EXISTS betalent_test CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci; GRANT ALL PRIVILEGES ON betalent_test.* TO 'betalent'@'%'; FLUSH PRIVILEGES;"
+
+      - name: Run critical suite against real MySQL
+        run: |
+          docker compose exec -T \
+            -e RUN_CRITICAL_MYSQL_TESTS=true \
+            -e TEST_DB_CONNECTION=mysql \
+            -e TEST_DB_HOST=mysql \
+            -e TEST_DB_PORT=3306 \
+            -e TEST_DB_DATABASE=betalent_test \
+            -e TEST_DB_USERNAME=betalent \
+            -e TEST_DB_PASSWORD=betalent \
+            app php artisan test --testsuite=CriticalMySql
+
       - name: Run integration suite against real gateway mocks
         run: docker compose exec -T -e RUN_GATEWAY_INTEGRATION_TESTS=true app php artisan test --testsuite=Integration
 
