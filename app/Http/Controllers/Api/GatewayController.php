@@ -15,6 +15,8 @@ class GatewayController extends Controller
 {
     public function index()
     {
+        $this->authorize('viewAny', Gateway::class);
+
         return ApiResponse::success([
             'gateways' => GatewayResource::collection(Gateway::query()->orderBy('priority')->get()),
         ]);
@@ -22,6 +24,8 @@ class GatewayController extends Controller
 
     public function toggle(ToggleGatewayStatusRequest $request, Gateway $gateway)
     {
+        $this->authorize('manageSettings', $gateway);
+
         $gateway->update($request->validated());
 
         Log::info('gateway_status_updated', [
@@ -36,6 +40,8 @@ class GatewayController extends Controller
 
     public function updatePriority(UpdateGatewayPriorityRequest $request, Gateway $gateway)
     {
+        $this->authorize('manageSettings', $gateway);
+
         DB::transaction(function () use ($gateway, $request): void {
             $newPriority = (int) $request->validated('priority');
 

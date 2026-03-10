@@ -2,15 +2,16 @@
 
 use App\Exceptions\ConflictException;
 use App\Http\Middleware\AssignRequestId;
-use App\Http\Middleware\EnsureUserHasRole;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Auth\AuthenticationException;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
+use Illuminate\Http\Exceptions\ThrottleRequestsException;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
+use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface;
 
 return Application::configure(basePath: dirname(__DIR__))
@@ -22,9 +23,6 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->append(AssignRequestId::class);
-        $middleware->alias([
-            'role' => EnsureUserHasRole::class,
-        ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->render(function (AuthenticationException $e, Request $request) {
@@ -57,6 +55,21 @@ return Application::configure(basePath: dirname(__DIR__))
             ], 403);
         });
 
+        $exceptions->render(function (AccessDeniedHttpException $e, Request $request) {
+            if (! $request->is('api/*')) {
+                return null;
+            }
+
+            return response()->json([
+                'error' => [
+                    'code' => 'forbidden',
+                    'message' => 'You do not have permission to access this resource.',
+                    'details' => [],
+                ],
+                'request_id' => $request->attributes->get('request_id') ?: $request->header('X-Request-ID'),
+            ], 403);
+        });
+
         $exceptions->render(function (ValidationException $e, Request $request) {
             if (! $request->is('api/*')) {
                 return null;
@@ -70,6 +83,21 @@ return Application::configure(basePath: dirname(__DIR__))
                 ],
                 'request_id' => $request->attributes->get('request_id') ?: $request->header('X-Request-ID'),
             ], 422);
+        });
+
+        $exceptions->render(function (ThrottleRequestsException $e, Request $request) {
+            if (! $request->is('api/*')) {
+                return null;
+            }
+
+            return response()->json([
+                'error' => [
+                    'code' => 'rate_limited',
+                    'message' => 'Too many requests. Please try again later.',
+                    'details' => [],
+                ],
+                'request_id' => $request->attributes->get('request_id') ?: $request->header('X-Request-ID'),
+            ], 429, $e->getHeaders());
         });
 
         $exceptions->render(function (ConflictException $e, Request $request) {

@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Exceptions\ConflictException;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Product\IndexProductRequest;
 use App\Http\Requests\Product\StoreProductRequest;
 use App\Http\Requests\Product\UpdateProductRequest;
 use App\Http\Resources\ProductResource;
@@ -12,9 +13,11 @@ use App\Services\Support\ApiResponse;
 
 class ProductController extends Controller
 {
-    public function index()
+    public function index(IndexProductRequest $request)
     {
-        $products = Product::query()->latest()->paginate(request('per_page', 15));
+        $this->authorize('viewAny', Product::class);
+
+        $products = Product::query()->latest()->paginate($request->integer('per_page', 15));
 
         return ApiResponse::success([
             'products' => ApiResponse::paginated($products, ProductResource::class),
@@ -23,6 +26,8 @@ class ProductController extends Controller
 
     public function store(StoreProductRequest $request)
     {
+        $this->authorize('create', Product::class);
+
         $product = Product::query()->create($request->validated());
 
         return ApiResponse::success(['product' => ProductResource::make($product)], 201);
@@ -30,11 +35,15 @@ class ProductController extends Controller
 
     public function show(Product $product)
     {
+        $this->authorize('view', $product);
+
         return ApiResponse::success(['product' => ProductResource::make($product)]);
     }
 
     public function update(UpdateProductRequest $request, Product $product)
     {
+        $this->authorize('update', $product);
+
         $product->update($request->validated());
 
         return ApiResponse::success(['product' => ProductResource::make($product->fresh())]);
@@ -42,6 +51,8 @@ class ProductController extends Controller
 
     public function destroy(Product $product)
     {
+        $this->authorize('delete', $product);
+
         if ($product->transactions()->exists()) {
             throw new ConflictException(
                 message: 'Products with purchase history cannot be deleted. Disable the product instead.',

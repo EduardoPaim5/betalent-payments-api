@@ -3,11 +3,11 @@
 namespace App\Services\Payments\Gateways;
 
 use App\Enums\GatewayErrorType;
+use App\Exceptions\GatewayClientException;
 use App\Models\Gateway;
 use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Http;
-use RuntimeException;
 
 class Gateway2Adapter implements PaymentGatewayPort
 {
@@ -108,7 +108,7 @@ class Gateway2Adapter implements PaymentGatewayPort
         $secret = (string) config('services.gateways.gateway_2.auth_secret');
 
         if ($token === '' || $secret === '') {
-            throw new RuntimeException('Gateway 2 credentials are not configured.');
+            throw new GatewayClientException('Gateway 2 credentials are not configured.');
         }
 
         return array_merge([
@@ -121,7 +121,7 @@ class Gateway2Adapter implements PaymentGatewayPort
     {
         $baseUrl = rtrim((string) config('services.gateways.gateway_2.base_url'), '/');
         if ($baseUrl === '') {
-            throw new RuntimeException('Gateway 2 base URL is not configured.');
+            throw new GatewayClientException('Gateway 2 base URL is not configured.');
         }
 
         return $baseUrl;

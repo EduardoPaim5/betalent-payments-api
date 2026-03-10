@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Enums\UserRole;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
@@ -55,5 +56,18 @@ class User extends Authenticatable
             UserRole::MANAGER => in_array($target->role, [UserRole::FINANCE, UserRole::USER], true),
             default => false,
         };
+    }
+
+    public function scopeVisibleTo(Builder $query, self $actor): void
+    {
+        if (! $actor->hasRole(UserRole::MANAGER)) {
+            return;
+        }
+
+        $query->where(function (Builder $builder) use ($actor): void {
+            $builder
+                ->whereIn('role', [UserRole::FINANCE->value, UserRole::USER->value])
+                ->orWhere('id', $actor->id);
+        });
     }
 }

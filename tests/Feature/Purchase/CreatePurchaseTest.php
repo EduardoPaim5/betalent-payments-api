@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Purchase;
 
+use App\Models\Client;
 use App\Models\Gateway;
 use App\Models\Product;
 use App\Models\Transaction;
@@ -174,7 +175,7 @@ class CreatePurchaseTest extends TestCase
             ])
             ->assertStatus(422)
             ->assertJsonPath('error.code', 'validation_error')
-            ->assertJsonPath('error.details.idempotency_key.0', 'This idempotency key was already used with a different purchase payload.');
+            ->assertJsonPath('error.details.idempotency_key.0', 'This idempotency key was already used with a different stable purchase payload.');
 
         $this->assertSame(1, Transaction::query()->count());
         Http::assertSentCount(1);
@@ -211,9 +212,30 @@ class CreatePurchaseTest extends TestCase
             ])
             ->assertStatus(422)
             ->assertJsonPath('error.code', 'validation_error')
-            ->assertJsonPath('error.details.idempotency_key.0', 'This idempotency key was already used with a different purchase payload.');
+            ->assertJsonPath('error.details.idempotency_key.0', 'This idempotency key was already used with a different stable purchase payload.');
 
         $this->assertSame(1, Transaction::query()->count());
         Http::assertSentCount(1);
+    }
+
+    public function test_existing_client_name_is_not_mutated_by_public_purchase_payload(): void
+    {
+        Gateway::query()->create(['code' => 'gateway_2', 'name' => 'Gateway 2', 'priority' => 1, 'is_active' => true]);
+        $product = Product::query()->create(['name' => 'Notebook', 'amount' => 1000, 'is_active' => true]);
+        $client = Client::query()->create(['name' => 'Original Client', 'email' => 'tester@email.com']);
+
+        Http::fake([
+            '*/transacoes' => Http::response(['id' => 'ext-success'], 200),
+        ]);
+
+        $this->postJson('/api/purchases', [
+            'client' => ['name' => 'Tampered Client', 'email' => 'tester@email.com'],
+            'payment' => ['card_number' => '5569000000006063', 'cvv' => '010'],
+            'items' => [
+                ['product_id' => $product->id, 'quantity' => 1],
+            ],
+        ])->assertCreated();
+
+        $this->assertSame('Original Client', $client->fresh()->name);
     }
 }

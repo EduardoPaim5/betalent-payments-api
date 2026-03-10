@@ -3,11 +3,11 @@
 namespace App\Services\Payments\Gateways;
 
 use App\Enums\GatewayErrorType;
+use App\Exceptions\GatewayClientException;
 use App\Models\Gateway;
 use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Http;
-use RuntimeException;
 
 class Gateway1Adapter implements PaymentGatewayPort
 {
@@ -108,7 +108,7 @@ class Gateway1Adapter implements PaymentGatewayPort
         $token = (string) config('services.gateways.gateway_1.token');
 
         if ($email === '' || $token === '') {
-            throw new RuntimeException('Gateway 1 credentials are not configured.');
+            throw new GatewayClientException('Gateway 1 credentials are not configured.');
         }
 
         $response = $this->httpClient()->post($baseUrl.'/login', [
@@ -117,12 +117,12 @@ class Gateway1Adapter implements PaymentGatewayPort
         ]);
 
         if (! $response->successful()) {
-            throw new RuntimeException('Gateway 1 authentication failed.');
+            throw new GatewayClientException('Gateway 1 authentication failed.');
         }
 
         $token = (string) ($response->json('token') ?? '');
         if ($token === '') {
-            throw new RuntimeException('Gateway 1 authentication token is missing.');
+            throw new GatewayClientException('Gateway 1 authentication token is missing.');
         }
 
         return $token;
@@ -132,7 +132,7 @@ class Gateway1Adapter implements PaymentGatewayPort
     {
         $baseUrl = rtrim((string) config('services.gateways.gateway_1.base_url'), '/');
         if ($baseUrl === '') {
-            throw new RuntimeException('Gateway 1 base URL is not configured.');
+            throw new GatewayClientException('Gateway 1 base URL is not configured.');
         }
 
         return $baseUrl;
