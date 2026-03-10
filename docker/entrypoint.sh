@@ -9,7 +9,13 @@ if [ ! -f .env ]; then
   cp .env.example .env
 fi
 
-if [ -z "${APP_KEY:-}" ] && ! grep -q '^APP_KEY=base64:' .env; then
+if [ -n "${APP_KEY:-}" ]; then
+  if grep -q '^APP_KEY=' .env; then
+    sed -i "s#^APP_KEY=.*#APP_KEY=${APP_KEY}#" .env
+  else
+    printf '\nAPP_KEY=%s\n' "$APP_KEY" >> .env
+  fi
+elif ! grep -q '^APP_KEY=base64:' .env; then
   php artisan key:generate --force --ansi
 fi
 

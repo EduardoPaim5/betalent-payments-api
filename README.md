@@ -14,7 +14,7 @@ docker compose exec app php artisan test
 
 Observações do ambiente Docker:
 
-- o container `app` usa uma `APP_KEY` fixa de desenvolvimento via `docker-compose.yml`, então recriar o container não invalida os tokens por rotação acidental de chave
+- o container gera uma `APP_KEY` local automaticamente quando ela não é fornecida pelo ambiente
 - o MySQL usa volume nomeado (`mysql_data`), então os dados persistem entre `docker compose down` e `docker compose up`
 - o seed automático acontece apenas quando o banco está vazio; reiniciar a API não deve sobrescrever usuários e produtos já existentes
 - para reiniciar do zero, use `docker compose down -v`
