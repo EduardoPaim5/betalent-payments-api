@@ -1,0 +1,26 @@
+meta {
+  name: Toggle Gateway Status
+  type: http
+  seq: 3
+}
+
+patch {
+  url: {{baseUrl}}/api/gateways/{{gatewayId}}/status
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{authToken}}
+}
+
+headers {
+  Accept: application/json
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "is_active": false
+  }
+}

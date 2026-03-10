@@ -1,0 +1,26 @@
+meta {
+  name: Create Refund
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{baseUrl}}/api/refunds
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{authToken}}
+}
+
+headers {
+  Accept: application/json
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "transaction_id": "{{transactionId}}"
+  }
+}

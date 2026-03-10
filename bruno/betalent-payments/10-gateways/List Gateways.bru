@@ -1,0 +1,19 @@
+meta {
+  name: List Gateways
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{baseUrl}}/api/gateways
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{authToken}}
+}
+
+headers {
+  Accept: application/json
+}

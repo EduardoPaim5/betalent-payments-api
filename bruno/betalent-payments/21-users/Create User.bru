@@ -1,0 +1,29 @@
+meta {
+  name: Create User
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{baseUrl}}/api/users
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{authToken}}
+}
+
+headers {
+  Accept: application/json
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "name": "New Finance User",
+    "email": "new.finance@betalent.local",
+    "password": "password123",
+    "role": "FINANCE"
+  }
+}

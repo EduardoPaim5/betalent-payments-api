@@ -1,0 +1,26 @@
+meta {
+  name: Update Gateway Priority
+  type: http
+  seq: 2
+}
+
+patch {
+  url: {{baseUrl}}/api/gateways/{{gatewayId}}/priority
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{authToken}}
+}
+
+headers {
+  Accept: application/json
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "priority": 1
+  }
+}

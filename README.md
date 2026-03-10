@@ -30,7 +30,7 @@ Observações do ambiente Docker:
 ## Stack
 
 - Laravel 12
-- PHP 8.4+
+- PHP 8.5
 - MySQL 8
 - Laravel Sanctum para autenticação por token
 - Docker Compose com `app`, `mysql` e `gateway-mock`
@@ -38,15 +38,17 @@ Observações do ambiente Docker:
 
 ## Arquitetura
 
-- `Domain`: enums e regras de estado
-- `Application`: serviços de compra e reembolso
-- `Infrastructure`: Eloquent, adapters HTTP dos gateways e seeders
-- `HTTP`: controllers, requests, middleware, resources e resposta padronizada
+- Controllers finos com `FormRequest`, `Resource` e resposta JSON padronizada
+- Policies para autorização de recursos e regras de acesso por role
+- Services de pagamento separados por responsabilidade: idempotência, itens, criação de transação, tentativas e transições de estado
+- Adapters HTTP por gateway com contrato comum (`PaymentGatewayPort`)
+- Eloquent/MySQL para persistência de transações, itens, tentativas e reembolsos
 
 ## Decisões arquiteturais
 
 - O valor da compra é sempre calculado no backend para evitar manipulação no cliente.
 - Compras aceitam `Idempotency-Key` opcional para evitar duplicidade em retries do cliente.
+- O fingerprint idempotente é estável e não inclui CVV para não persistir dado sensível de autenticação.
 - O contrato entre a aplicação e os gateways passa por adapters, o que simplifica a adição de novos gateways.
 - `gateway_attempts` existe para rastrear fallback, latência e falhas por tentativa.
 - `external_id` é obrigatório para confirmar uma cobrança aprovada e permitir reembolso com segurança.
@@ -78,7 +80,7 @@ Client
 - Reembolso usa obrigatoriamente o gateway vencedor da compra
 - Exceções técnicas em um gateway são registradas como falha e não interrompem o fallback
 - `external_id` só é aceito quando retornado pelo gateway; o sistema não faz correlação por listagem externa
-- Cliente é criado ou reaproveitado automaticamente pelo email
+- Cliente é criado ou reaproveitado automaticamente pelo email, preservando o nome já persistido
 
 ## Status
 
@@ -103,6 +105,33 @@ Client
 - `MANAGER`: gerencia usuários e produtos, sem poder promover usuários para `ADMIN`
 - `FINANCE`: gerencia produtos e realiza reembolso
 - `USER`: acesso autenticado restante
+
+## Matriz de permissões
+
+As regras abaixo refletem as policies e validações atuais da API.
+
+| Ação | ADMIN | MANAGER | FINANCE | USER | Observação |
+|---|---|---|---|---|---|
+| `POST /api/login` | Sim | Sim | Sim | Sim | Rota pública |
+| `POST /api/purchases` | Sim | Sim | Sim | Sim | Rota pública |
+| `GET /api/gateways` | Sim | Sim | Sim | Não | Leitura da configuração |
+| `PATCH /api/gateways/{gateway}/priority` | Sim | Não | Não | Não | Apenas `ADMIN` |
+| `PATCH /api/gateways/{gateway}/status` | Sim | Não | Não | Não | Apenas `ADMIN` |
+| `GET /api/users` | Sim | Sim | Não | Não | `MANAGER` vê `FINANCE`, `USER` e o próprio usuário |
+| `POST /api/users` | Sim | Sim | Não | Não | `MANAGER` só pode criar `FINANCE` e `USER` |
+| `GET /api/users/{user}` | Sim | Parcial | Não | Não | `MANAGER` só pode ver usuários gerenciáveis e a própria conta |
+| `PUT/PATCH /api/users/{user}` | Sim | Parcial | Não | Não | `MANAGER` só pode atualizar `FINANCE` e `USER` |
+| `DELETE /api/users/{user}` | Sim | Parcial | Não | Não | `MANAGER` só pode remover `FINANCE` e `USER`; ninguém pode remover a própria conta |
+| `GET /api/products` | Sim | Sim | Sim | Não | |
+| `POST /api/products` | Sim | Sim | Sim | Não | |
+| `GET /api/products/{product}` | Sim | Sim | Sim | Não | |
+| `PUT/PATCH /api/products/{product}` | Sim | Sim | Sim | Não | |
+| `DELETE /api/products/{product}` | Sim | Sim | Sim | Não | Bloqueado se houver histórico de compra |
+| `GET /api/clients` | Sim | Sim | Sim | Não | |
+| `GET /api/clients/{client}` | Sim | Sim | Sim | Não | |
+| `GET /api/transactions` | Sim | Sim | Sim | Não | |
+| `GET /api/transactions/{transaction}` | Sim | Sim | Sim | Não | |
+| `POST /api/refunds` | Sim | Não | Sim | Não | Apenas `ADMIN` e `FINANCE` |
 
 ## Estrutura principal
 
@@ -150,6 +179,8 @@ O caminho principal de validação do projeto é via Docker.
 ```bash
 docker compose up -d --build
 docker compose exec app php artisan test
+docker compose exec mysql mysql -uroot -proot -e "CREATE DATABASE IF NOT EXISTS betalent_test CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci; GRANT ALL PRIVILEGES ON betalent_test.* TO 'betalent'@'%'; FLUSH PRIVILEGES;"
+docker compose exec -e RUN_CRITICAL_MYSQL_TESTS=true -e TEST_DB_CONNECTION=mysql -e TEST_DB_HOST=mysql -e TEST_DB_PORT=3306 -e TEST_DB_DATABASE=betalent_test -e TEST_DB_USERNAME=betalent -e TEST_DB_PASSWORD=betalent app php artisan test --testsuite=CriticalMySql
 docker compose exec -e RUN_GATEWAY_INTEGRATION_TESTS=true app php artisan test --testsuite=Integration
 docker compose exec app php scripts/smoke.php
 ```
@@ -172,6 +203,13 @@ Para validar os mocks reais dos gateways via suíte de integração opcional:
 docker compose exec -e RUN_GATEWAY_INTEGRATION_TESTS=true app php artisan test --testsuite=Integration
 ```
 
+Para validar os fluxos críticos também em MySQL real, usando uma base isolada de teste:
+
+```bash
+docker compose exec mysql mysql -uroot -proot -e "CREATE DATABASE IF NOT EXISTS betalent_test CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci; GRANT ALL PRIVILEGES ON betalent_test.* TO 'betalent'@'%'; FLUSH PRIVILEGES;"
+docker compose exec -e RUN_CRITICAL_MYSQL_TESTS=true -e TEST_DB_CONNECTION=mysql -e TEST_DB_HOST=mysql -e TEST_DB_PORT=3306 -e TEST_DB_DATABASE=betalent_test -e TEST_DB_USERNAME=betalent -e TEST_DB_PASSWORD=betalent app php artisan test --testsuite=CriticalMySql
+```
+
 Se quiser resetar completamente a base persistida do Docker:
 
 ```bash
@@ -192,6 +230,15 @@ Observações:
 - a suíte padrão (`php artisan test`) usa SQLite em memória e não altera a base MySQL persistida do Compose
 - a suíte `Integration` fica separada porque depende dos mocks HTTP reais estarem acessíveis
 
+### Mapa das suítes de validação
+
+| Suíte / comando | Banco | Integrações reais | Valida |
+|---|---|---|---|
+| `php artisan test` | SQLite em memória | Não | unit e feature tests rápidos do domínio, autorização, validação, rate limit e fluxos de compra/reembolso com `Http::fake()` |
+| `php artisan test --testsuite=CriticalMySql` | MySQL real (`betalent_test`) | Não | fluxos críticos persistidos em MySQL real: cálculo da compra, fallback, replay idempotente, corrida por `idempotency_key` e reembolso |
+| `php artisan test --testsuite=Integration` | SQLite em memória | Sim, `gateway-mock` | cenários reais de gateway: aprovação primária, fallback, falha total, falha de autenticação e refund |
+| `php scripts/smoke.php` | MySQL da stack | Sim, API HTTP + `gateway-mock` | validação ponta a ponta de login, compra com fallback, replay idempotente, detalhe de transação e reembolso |
+
 Se o seu ambiente usar o binário legado, substitua `docker compose` por `docker-compose`.
 
 Atalhos com `Makefile`:
@@ -200,12 +247,50 @@ Atalhos com `Makefile`:
 make up
 make composer-validate
 make test
+make test-critical-mysql
 make test-integration
 make smoke
 make verify
 ```
 
-`make verify` replica a validação principal da entrega localmente: valida o `composer.json`, confere estilo, executa a suíte da aplicação, a suíte de integração contra os mocks reais e o smoke test HTTP.
+`make verify` replica a validação principal da entrega localmente: valida o `composer.json`, confere estilo, executa a suíte rápida da aplicação, a suíte crítica contra MySQL real, a suíte de integração contra os mocks reais e o smoke test HTTP.
+
+## Cobertura automatizada
+
+O repositório contém testes automatizados para os principais fluxos do desafio.
+
+Unit:
+
+- `tests/Unit/Payments/PaymentIdempotencyServiceTest.php`
+- `tests/Unit/Payments/RedactsGatewayPayloadTest.php`
+
+Feature:
+
+- autenticação: `tests/Feature/Auth/LoginTest.php`
+- autorização e roles: `tests/Feature/Authorization/InternalDataAuthorizationTest.php`, `tests/Feature/Gateway/GatewayAuthorizationTest.php`, `tests/Feature/User/UserAuthorizationTest.php`
+- gateways: `tests/Feature/Gateway/GatewayPriorityTest.php`
+- produtos: `tests/Feature/Product/ProductLifecycleTest.php`
+- compras: `tests/Feature/Purchase/CreatePurchaseTest.php`, `tests/Feature/Purchase/AllGatewaysFailTest.php`, `tests/Feature/Purchase/InactiveGatewaySkipTest.php`, `tests/Feature/Purchase/MissingExternalIdTest.php`, `tests/Feature/Purchase/IdempotencyRaceConditionTest.php`
+- reembolso: `tests/Feature/Refund/RefundTransactionTest.php`
+- suporte e bordas operacionais: `tests/Feature/Support/ListValidationTest.php`, `tests/Feature/Support/RateLimitTest.php`, `tests/Feature/Support/RequestIdTest.php`
+
+Critical MySQL:
+
+- `tests/Critical/MySqlCriticalFlowTest.php`
+
+Integration:
+
+- `tests/Integration/GatewayMockIntegrationTest.php`
+
+Smoke HTTP:
+
+- `scripts/smoke.php`
+
+## Nota sobre TDD
+
+O repositório demonstra objetivamente uma suíte de testes cobrindo os comportamentos críticos da aplicação.
+
+O estado atual do código, por si só, não comprova que todo o desenvolvimento ocorreu em TDD. Essa evidência depende do histórico Git e da sequência de commits ou PRs. No estado atual da entrega, a evidência verificável é a cobertura automatizada dos fluxos acima.
 
 Arquivo de ambiente:
 
@@ -322,6 +407,276 @@ Filtros disponíveis:
 
 - `POST /api/refunds` (`ADMIN`, `FINANCE`)
 
+## Exemplos de rotas privadas principais
+
+Os exemplos abaixo usam placeholders como `<token>`, `<gateway-id>` e `<transaction-uuid>` para representar valores dinâmicos reais da execução.
+
+### Listar gateways
+
+`GET /api/gateways`
+
+```bash
+curl -X GET http://localhost:8000/api/gateways \
+  -H "Accept: application/json" \
+  -H "Authorization: Bearer <token>"
+```
+
+Resposta resumida:
+
+```json
+{
+  "data": {
+    "gateways": [
+      {
+        "id": 1,
+        "code": "gateway_1",
+        "name": "Gateway 1",
+        "is_active": true,
+        "priority": 1,
+        "created_at": "<timestamp>",
+        "updated_at": "<timestamp>"
+      }
+    ]
+  },
+  "request_id": "<request-id>"
+}
+```
+
+### Alterar prioridade de gateway
+
+`PATCH /api/gateways/{gateway}/priority`
+
+```bash
+curl -X PATCH http://localhost:8000/api/gateways/<gateway-id>/priority \
+  -H "Accept: application/json" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <token>" \
+  -d '{"priority": 1}'
+```
+
+Resposta resumida:
+
+```json
+{
+  "data": {
+    "gateway": {
+      "id": "<gateway-id>",
+      "code": "gateway_2",
+      "name": "Gateway 2",
+      "is_active": true,
+      "priority": 1,
+      "created_at": "<timestamp>",
+      "updated_at": "<timestamp>"
+    }
+  },
+  "request_id": "<request-id>"
+}
+```
+
+### Criar usuário
+
+`POST /api/users`
+
+```bash
+curl -X POST http://localhost:8000/api/users \
+  -H "Accept: application/json" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <token>" \
+  -d '{
+    "name": "New Finance User",
+    "email": "new.finance@betalent.local",
+    "password": "password123",
+    "role": "FINANCE"
+  }'
+```
+
+Resposta resumida:
+
+```json
+{
+  "data": {
+    "user": {
+      "id": "<user-id>",
+      "name": "New Finance User",
+      "email": "new.finance@betalent.local",
+      "role": "FINANCE",
+      "created_at": "<timestamp>",
+      "updated_at": "<timestamp>"
+    }
+  },
+  "request_id": "<request-id>"
+}
+```
+
+### Criar produto
+
+`POST /api/products`
+
+```bash
+curl -X POST http://localhost:8000/api/products \
+  -H "Accept: application/json" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <token>" \
+  -d '{
+    "name": "Headset Pro",
+    "amount": 199900,
+    "is_active": true
+  }'
+```
+
+Resposta resumida:
+
+```json
+{
+  "data": {
+    "product": {
+      "id": "<product-id>",
+      "name": "Headset Pro",
+      "amount": 199900,
+      "is_active": true,
+      "created_at": "<timestamp>",
+      "updated_at": "<timestamp>"
+    }
+  },
+  "request_id": "<request-id>"
+}
+```
+
+### Consultar transação detalhada
+
+`GET /api/transactions/{transaction}`
+
+```bash
+curl -X GET http://localhost:8000/api/transactions/<transaction-uuid> \
+  -H "Accept: application/json" \
+  -H "Authorization: Bearer <token>"
+```
+
+Resposta resumida:
+
+```json
+{
+  "data": {
+    "transaction": {
+      "id": "<transaction-uuid>",
+      "client_id": "<client-id>",
+      "gateway_id": "<gateway-id>",
+      "status": "paid",
+      "amount": 1000,
+      "card_last_numbers": "6063",
+      "failure_reason": null,
+      "created_at": "<timestamp>",
+      "updated_at": "<timestamp>",
+      "client": {
+        "id": "<client-id>",
+        "name": "Tester",
+        "email": "tester@email.com",
+        "created_at": "<timestamp>",
+        "updated_at": "<timestamp>"
+      },
+      "gateway": {
+        "id": "<gateway-id>",
+        "code": "gateway_2",
+        "name": "Gateway 2",
+        "is_active": true,
+        "priority": 2,
+        "created_at": "<timestamp>",
+        "updated_at": "<timestamp>"
+      },
+      "products": [
+        {
+          "id": "<product-id>",
+          "name": "Notebook Pro",
+          "amount": 549900,
+          "is_active": true,
+          "quantity": 1,
+          "unit_amount": 549900,
+          "line_total": 549900
+        }
+      ],
+      "attempts": [
+        {
+          "id": "<attempt-id>",
+          "gateway_id": "<gateway-id>",
+          "attempt_order": 1,
+          "success": false,
+          "error_type": "business_error",
+          "status_code": 422,
+          "message": "declined",
+          "latency_ms": 120,
+          "created_at": "<timestamp>"
+        }
+      ],
+      "refunds": []
+    }
+  },
+  "request_id": "<request-id>"
+}
+```
+
+### Reembolsar transação
+
+`POST /api/refunds`
+
+```bash
+curl -X POST http://localhost:8000/api/refunds \
+  -H "Accept: application/json" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <token>" \
+  -d '{
+    "transaction_id": "<transaction-uuid>"
+  }'
+```
+
+Resposta resumida:
+
+```json
+{
+  "data": {
+    "refund": {
+      "id": "<refund-id>",
+      "transaction_id": "<transaction-uuid>",
+      "gateway_id": "<gateway-id>",
+      "status": "refunded",
+      "message": "Refund processed",
+      "created_at": "<timestamp>",
+      "updated_at": "<timestamp>"
+    }
+  },
+  "request_id": "<request-id>"
+}
+```
+
+## Collection Bruno
+
+Existe uma collection Bruno pronta em `bruno/betalent-payments`.
+
+Ela cobre:
+
+- login
+- gateways
+- usuários
+- produtos
+- clientes
+- transações
+- reembolso
+
+Observação:
+
+- a collection Bruno foi incluída como material de apoio para avaliação manual
+- os exemplos principais de uso e payloads também estão documentados neste README
+- o repositório não possui validação automatizada da importação da collection no Bruno
+
+Variáveis do ambiente `local`:
+
+- `baseUrl`
+- `authToken`
+- `gatewayId`
+- `userId`
+- `productId`
+- `clientId`
+- `transactionId`
+
 ## Contrato de compra
 
 `POST /api/purchases`
@@ -356,8 +711,10 @@ Regras:
 - produto inativo não pode ser comprado
 - `amount` total da transação é calculado no backend
 - `unit_amount` e `line_total` ficam congelados no histórico da compra
-- a mesma `Idempotency-Key` com o mesmo payload retorna a transação já criada
-- a mesma `Idempotency-Key` com payload diferente é rejeitada com `validation_error`
+- a mesma `Idempotency-Key` com o mesmo payload estável retorna a transação já criada
+- a mesma `Idempotency-Key` com payload estável diferente é rejeitada com `validation_error`
+- o payload estável considera cliente, itens e fingerprint do cartão; o CVV não entra no hash persistido
+- se o cliente corrigir apenas o CVV, deve enviar uma nova `Idempotency-Key`
 - alterar o cartão, mesmo mantendo os mesmos últimos 4 dígitos, invalida o replay idempotente
 - se um gateway responder com sucesso sem `external_id`, o fluxo é interrompido sem tentar outro gateway
 
