@@ -1,9 +1,9 @@
 {
     "$schema": "https://getcomposer.org/schema.json",
-    "name": "laravel/laravel",
+    "name": "betalent/multi-gateway-payments-api",
     "type": "project",
-    "description": "The skeleton application for the Laravel framework.",
-    "keywords": ["laravel", "framework"],
+    "description": "Multi-gateway payments API for the BeTalent backend challenge.",
+    "keywords": ["betalent", "payments", "laravel", "api"],
     "license": "MIT",
     "require": {
         "php": "^8.4",
@@ -37,13 +37,10 @@
             "composer install",
             "@php -r \"file_exists('.env') || copy('.env.example', '.env');\"",
             "@php artisan key:generate",
-            "@php artisan migrate --force",
-            "npm install",
-            "npm run build"
+            "@php artisan migrate --force"
         ],
         "dev": [
-            "Composer\\Config::disableProcessTimeout",
-            "npx concurrently -c \"#93c5fd,#c4b5fd,#fb7185,#fdba74\" \"php artisan serve\" \"php artisan queue:listen --tries=1 --timeout=0\" \"php artisan pail --timeout=0\" \"npm run dev\" --names=server,queue,logs,vite --kill-others"
+            "@php artisan serve"
         ],
         "test": [
             "@php artisan config:clear --ansi",
