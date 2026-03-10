@@ -1,4 +1,4 @@
-.PHONY: up down composer-validate prepare-test-mysql-db test test-critical-mysql test-integration style smoke verify
+.PHONY: up down composer-validate prepare-test-mysql-db test test-critical-mysql test-integration test-bruno style smoke verify
 
 up:
 	docker compose up -d --build
@@ -29,10 +29,13 @@ test-critical-mysql: prepare-test-mysql-db
 test-integration:
 	docker compose exec -T -e RUN_GATEWAY_INTEGRATION_TESTS=true app php artisan test --testsuite=Integration
 
+test-bruno:
+	./scripts/validate_bruno_collection.sh
+
 style:
 	docker compose exec -T app vendor/bin/pint --test
 
 smoke:
 	docker compose exec -T app php scripts/smoke.php
 
-verify: composer-validate style test test-critical-mysql test-integration smoke
+verify: composer-validate style test test-critical-mysql test-integration smoke test-bruno

@@ -11,6 +11,7 @@ docker compose up -d --build
 curl http://localhost:8000/up
 docker compose exec app php artisan test
 docker compose exec app php scripts/smoke.php
+make test-bruno
 ```
 
 Observações do ambiente Docker:
@@ -183,6 +184,7 @@ docker compose exec mysql mysql -uroot -proot -e "CREATE DATABASE IF NOT EXISTS 
 docker compose exec -e RUN_CRITICAL_MYSQL_TESTS=true -e TEST_DB_CONNECTION=mysql -e TEST_DB_HOST=mysql -e TEST_DB_PORT=3306 -e TEST_DB_DATABASE=betalent_test -e TEST_DB_USERNAME=betalent -e TEST_DB_PASSWORD=betalent app php artisan test --testsuite=CriticalMySql
 docker compose exec -e RUN_GATEWAY_INTEGRATION_TESTS=true app php artisan test --testsuite=Integration
 docker compose exec app php scripts/smoke.php
+make test-bruno
 ```
 
 Se a stack já estiver de pé:
@@ -208,6 +210,18 @@ Para validar os fluxos críticos também em MySQL real, usando uma base isolada 
 ```bash
 docker compose exec mysql mysql -uroot -proot -e "CREATE DATABASE IF NOT EXISTS betalent_test CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci; GRANT ALL PRIVILEGES ON betalent_test.* TO 'betalent'@'%'; FLUSH PRIVILEGES;"
 docker compose exec -e RUN_CRITICAL_MYSQL_TESTS=true -e TEST_DB_CONNECTION=mysql -e TEST_DB_HOST=mysql -e TEST_DB_PORT=3306 -e TEST_DB_DATABASE=betalent_test -e TEST_DB_USERNAME=betalent -e TEST_DB_PASSWORD=betalent app php artisan test --testsuite=CriticalMySql
+```
+
+Para validar a collection Bruno com variáveis dinâmicas reais (token, IDs e transação criada na hora):
+
+```bash
+make test-bruno
+```
+
+Opcionalmente, para usar outra URL da API:
+
+```bash
+BRUNO_BASE_URL=http://127.0.0.1:8000 make test-bruno
 ```
 
 Se quiser resetar completamente a base persistida do Docker:
@@ -238,6 +252,7 @@ Observações:
 | `php artisan test --testsuite=CriticalMySql` | MySQL real (`betalent_test`) | Não | fluxos críticos persistidos em MySQL real: cálculo da compra, fallback, replay idempotente, corrida por `idempotency_key` e reembolso |
 | `php artisan test --testsuite=Integration` | SQLite em memória | Sim, `gateway-mock` | cenários reais de gateway: aprovação primária, fallback, falha total, falha de autenticação e refund |
 | `php scripts/smoke.php` | MySQL da stack | Sim, API HTTP + `gateway-mock` | validação ponta a ponta de login, compra com fallback, replay idempotente, detalhe de transação e reembolso |
+| `make test-bruno` (`scripts/validate_bruno_collection.sh`) | MySQL da stack | Sim, API HTTP + `gateway-mock` + execução da collection Bruno | execução real dos requests da collection com variáveis dinâmicas resolvidas automaticamente, incluindo testes/assertions simples nas rotas principais |
 
 Se o seu ambiente usar o binário legado, substitua `docker compose` por `docker-compose`.
 
@@ -249,11 +264,12 @@ make composer-validate
 make test
 make test-critical-mysql
 make test-integration
+make test-bruno
 make smoke
 make verify
 ```
 
-`make verify` replica a validação principal da entrega localmente: valida o `composer.json`, confere estilo, executa a suíte rápida da aplicação, a suíte crítica contra MySQL real, a suíte de integração contra os mocks reais e o smoke test HTTP.
+`make verify` replica a validação principal da entrega localmente: valida o `composer.json`, confere estilo, executa a suíte rápida da aplicação, a suíte crítica contra MySQL real, a suíte de integração contra os mocks reais, o smoke test HTTP e a execução da collection Bruno.
 
 ## Cobertura automatizada
 
@@ -663,9 +679,10 @@ Ela cobre:
 
 Observação:
 
-- a collection Bruno foi incluída como material de apoio para avaliação manual
+- existe validação automatizada da execução da collection via `make test-bruno` (`scripts/validate_bruno_collection.sh`)
 - os exemplos principais de uso e payloads também estão documentados neste README
-- o repositório não possui validação automatizada da importação da collection no Bruno
+- os arquivos `.bru` possuem validações simples nas rotas principais (`login`, `list gateways`, `list products`, `list transactions`, `create refund`) com checks de status HTTP e estrutura mínima do JSON
+- na execução atual de `make test-bruno`, o CLI reporta `Tests: 10` e `Assertions: 10`
 
 Variáveis do ambiente `local`:
 
@@ -676,6 +693,7 @@ Variáveis do ambiente `local`:
 - `productId`
 - `clientId`
 - `transactionId`
+- `newUserEmail`
 
 ## Contrato de compra
 

@@ -21,3 +21,20 @@ body:json {
     "password": "password123"
   }
 }
+
+assert {
+  res.status: 200
+  res.body.data.token: isString
+}
+
+tests {
+  test("login retorna 200", () => {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("login retorna token", () => {
+    const body = res.getBody();
+    expect(body).to.have.nested.property("data.token");
+    expect(body.data.token).to.be.a("string").and.to.not.equal("");
+  });
+}

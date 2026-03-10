@@ -24,3 +24,20 @@ body:json {
     "transaction_id": "{{transactionId}}"
   }
 }
+
+assert {
+  res.status: 200
+  res.body.data.refund.status: eq refunded
+}
+
+tests {
+  test("refund retorna 200", () => {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("refund retorna status refunded", () => {
+    const body = res.getBody();
+    expect(body).to.have.nested.property("data.refund.status");
+    expect(body.data.refund.status).to.equal("refunded");
+  });
+}

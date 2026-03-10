@@ -17,3 +17,20 @@ auth:bearer {
 headers {
   Accept: application/json
 }
+
+assert {
+  res.status: 200
+  res.body.data.products.data: isArray
+}
+
+tests {
+  test("list products retorna 200", () => {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("list products retorna paginação com items", () => {
+    const body = res.getBody();
+    expect(body).to.have.nested.property("data.products.data");
+    expect(body.data.products.data).to.be.an("array");
+  });
+}

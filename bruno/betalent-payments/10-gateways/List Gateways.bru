@@ -17,3 +17,20 @@ auth:bearer {
 headers {
   Accept: application/json
 }
+
+assert {
+  res.status: 200
+  res.body.data.gateways: isArray
+}
+
+tests {
+  test("list gateways retorna 200", () => {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("list gateways retorna array", () => {
+    const body = res.getBody();
+    expect(body).to.have.nested.property("data.gateways");
+    expect(body.data.gateways).to.be.an("array");
+  });
+}
