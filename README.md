@@ -2,6 +2,31 @@
 
 API RESTful em Laravel para o desafio prático Back-end da BeTalent.
 
+Implementa um gerenciador de pagamentos multi-gateway com compra pública, cálculo de valor no backend, fallback por prioridade, reembolso, autorização por roles e validação automatizada via Docker.
+
+## O que foi implementado
+
+- Autenticação com Laravel Sanctum.
+- Compra pública com múltiplos produtos e cálculo de valor no backend.
+- Fallback multi-gateway por prioridade, com registro de tentativas.
+- Reembolso usando o gateway vencedor da compra.
+- CRUD de usuários e produtos com autorização por role.
+- Listagem de clientes e transações com proteção por autenticação.
+- Idempotência opcional para compras públicas.
+- Testes automatizados, smoke test HTTP e collection Bruno.
+- Docker Compose com `app`, `mysql` e `gateway-mock`.
+
+## Aderência ao desafio
+
+Este projeto cobre os requisitos centrais do nível 3 do desafio:
+
+- Múltiplos produtos por compra.
+- Cálculo de valor exclusivamente no backend.
+- Integração com autenticação em dois gateways.
+- Controle de acesso por roles.
+- Suíte automatizada cobrindo os fluxos críticos do sistema.
+- Docker Compose com aplicação, MySQL e mocks dos gateways.
+
 ## Avaliação rápida
 
 Execute os comandos abaixo na raiz do repositório:
@@ -16,12 +41,12 @@ make test-bruno
 
 Observações do ambiente Docker:
 
-- o container gera uma `APP_KEY` local automaticamente quando ela não é fornecida pelo ambiente
-- o MySQL usa volume nomeado (`mysql_data`), então os dados persistem entre `docker compose down` e `docker compose up`
-- o seed automático acontece apenas quando o banco está vazio; reiniciar a API não deve sobrescrever usuários e produtos já existentes
-- `docker compose exec app php artisan test` usa SQLite em memória dentro do processo de testes e não deve limpar o MySQL da stack
-- existe um smoke test HTTP real em `scripts/smoke.php` para validar login, compra com fallback, replay idempotente e reembolso
-- para reiniciar do zero, use `docker compose down -v`
+- O container gera uma `APP_KEY` local automaticamente quando ela não é fornecida pelo ambiente.
+- O MySQL usa volume nomeado (`mysql_data`), então os dados persistem entre `docker compose down` e `docker compose up`.
+- O seed automático acontece apenas quando o banco está vazio; reiniciar a API não deve sobrescrever usuários e produtos já existentes.
+- `docker compose exec app php artisan test` usa SQLite em memória dentro do processo de testes e não deve limpar o MySQL da stack.
+- Existe um smoke test HTTP real em `scripts/smoke.php` para validar login, compra com fallback, replay idempotente e reembolso.
+- Para reiniciar do zero, use `docker compose down -v`.
 
 ## Requisitos
 
@@ -37,6 +62,26 @@ Observações do ambiente Docker:
 - Docker Compose com `app`, `mysql` e `gateway-mock`
 - GitHub Actions para validação automatizada
 
+## Credenciais seed
+
+Senha para todos os usuários seed: `password123`
+
+- `admin@betalent.local` (`ADMIN`)
+- `manager@betalent.local` (`MANAGER`)
+- `finance@betalent.local` (`FINANCE`)
+- `user@betalent.local` (`USER`)
+
+Gateways seed:
+
+- `gateway_1` prioridade `1`
+- `gateway_2` prioridade `2`
+
+Produtos seed:
+
+- `Notebook Pro` - `549900`
+- `Monitor 27` - `129900`
+- `Mechanical Keyboard` - `39900`
+
 ## Arquitetura
 
 - Controllers finos com `FormRequest`, `Resource` e resposta JSON padronizada
@@ -45,7 +90,7 @@ Observações do ambiente Docker:
 - Adapters HTTP por gateway com contrato comum (`PaymentGatewayPort`)
 - Eloquent/MySQL para persistência de transações, itens, tentativas e reembolsos
 
-## Decisões arquiteturais
+## Principais decisões
 
 - O valor da compra é sempre calculado no backend para evitar manipulação no cliente.
 - Compras aceitam `Idempotency-Key` opcional para evitar duplicidade em retries do cliente.
@@ -53,7 +98,7 @@ Observações do ambiente Docker:
 - O contrato entre a aplicação e os gateways passa por adapters, o que simplifica a adição de novos gateways.
 - `gateway_attempts` existe para rastrear fallback, latência e falhas por tentativa.
 - `external_id` é obrigatório para confirmar uma cobrança aprovada e permitir reembolso com segurança.
-- respostas ambíguas do gateway não geram fallback automático para evitar risco de dupla cobrança
+- Respostas ambíguas do gateway não disparam fallback automático, para evitar risco de dupla cobrança.
 - O gateway salvo na transação representa apenas o gateway vencedor.
 
 ## Diagrama simplificado
@@ -303,16 +348,17 @@ Smoke HTTP:
 
 ## Nota sobre TDD
 
-O repositório demonstra objetivamente uma suíte de testes cobrindo os comportamentos críticos da aplicação.
+O repositório contém cobertura automatizada dos fluxos críticos do sistema.
 
-O estado atual do código, por si só, não comprova que todo o desenvolvimento ocorreu em TDD. Essa evidência depende do histórico Git e da sequência de commits ou PRs. No estado atual da entrega, a evidência verificável é a cobertura automatizada dos fluxos acima.
+A evidência objetiva disponível nesta entrega é a suíte de testes versionada e executável; a ordem exata de desenvolvimento pode ser inspecionada pelo histórico Git.
 
-## Limites conhecidos do design
+## Trade-offs assumidos
 
 - adicionar um novo gateway continua exigindo três passos explícitos: criar o adapter, registrar credenciais/configuração e incluir o adapter no `GatewayResolver` via `AppServiceProvider`
-- replays idempotentes podem retornar a transação ainda em `processing` com HTTP `202` quando outro request concorrente já venceu a criação e ainda está concluindo a cobrança; nesse caso o cliente deve repetir a consulta ou buscar o detalhe da transação depois
+- replays idempotentes podem retornar a transação ainda em `processing` com HTTP `202` quando uma requisição concorrente já venceu a criação e ainda está concluindo a cobrança; nesse caso o cliente deve repetir a consulta ou buscar o detalhe da transação depois
 - a sanitização de payloads de gateway é centralizada e cobre chaves sensíveis conhecidas por nome/padrão, mas não substitui disciplina de logging fora dos pontos que já usam o redactor
 - a suíte `php artisan test` é a validação rápida do domínio; as verificações com MySQL real e mocks HTTP reais continuam separadas nas suítes `CriticalMySql` e `Integration`
+- respostas ambíguas do gateway não disparam fallback automático, para evitar risco de dupla cobrança
 
 Arquivo de ambiente:
 
@@ -320,26 +366,6 @@ Arquivo de ambiente:
 - Para execução no host, ajuste `DB_HOST` e `GATEWAY_*_BASE_URL` para endereços acessíveis fora da rede do Compose
 - No fluxo com Docker, o entrypoint cria `.env` automaticamente se o arquivo não existir
 - Os valores `GATEWAY_*` versionados neste repositório são apenas credenciais públicas do `gateway-mock` usado no desafio e não devem ser tratados como segredos de produção
-
-## Credenciais seed
-
-Senha para todos os usuários seed: `password123`
-
-- `admin@betalent.local` (`ADMIN`)
-- `manager@betalent.local` (`MANAGER`)
-- `finance@betalent.local` (`FINANCE`)
-- `user@betalent.local` (`USER`)
-
-Gateways seed:
-
-- `gateway_1` prioridade `1`
-- `gateway_2` prioridade `2`
-
-Produtos seed:
-
-- `Notebook Pro` - `549900`
-- `Monitor 27` - `129900`
-- `Mechanical Keyboard` - `39900`
 
 ## Validação manual dos mocks
 
