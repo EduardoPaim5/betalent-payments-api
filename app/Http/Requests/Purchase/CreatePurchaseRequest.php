@@ -7,6 +7,13 @@ use Illuminate\Validation\Rule;
 
 class CreatePurchaseRequest extends FormRequest
 {
+    protected function prepareForValidation(): void
+    {
+        $this->merge([
+            'idempotency_key' => $this->header('Idempotency-Key', $this->input('idempotency_key')),
+        ]);
+    }
+
     public function authorize(): bool
     {
         return true;
@@ -19,6 +26,7 @@ class CreatePurchaseRequest extends FormRequest
             'client.email' => ['required', 'email', 'max:255'],
             'payment.card_number' => ['required', 'digits:16'],
             'payment.cvv' => ['required', 'digits:3'],
+            'idempotency_key' => ['nullable', 'string', 'max:255'],
             'items' => ['required', 'array', 'min:1'],
             'items.*.product_id' => [
                 'required',

@@ -8,10 +8,14 @@ trait RedactsGatewayPayload
     {
         $sensitiveKeys = [
             'cardnumber',
-            'numeroCartao',
+            'numero_cartao',
+            'numerocartao',
             'numero_cartao',
             'cvv',
             'token',
+            'gateway-auth-token',
+            'gateway-auth-secret',
+            'x-api-key',
             'auth_token',
             'auth_secret',
         ];

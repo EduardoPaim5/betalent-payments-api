@@ -22,6 +22,8 @@ class Transaction extends Model
         'gateway_id',
         'external_id',
         'correlation_id',
+        'idempotency_key',
+        'idempotency_hash',
         'status',
         'amount',
         'card_last_numbers',

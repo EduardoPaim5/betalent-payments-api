@@ -48,6 +48,12 @@ class GatewayController extends Controller
                 ->merge($withoutCurrent->slice($newPriority - 1))
                 ->values();
 
+            $temporaryOffset = $reordered->count() + 100;
+
+            foreach ($reordered as $index => $item) {
+                $item->update(['priority' => $temporaryOffset + $index]);
+            }
+
             foreach ($reordered as $index => $item) {
                 $item->update(['priority' => $index + 1]);
             }

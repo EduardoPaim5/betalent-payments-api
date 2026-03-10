@@ -8,11 +8,9 @@ use RuntimeException;
 class GatewayResolver
 {
     /**
-     * @param array<int, PaymentGatewayPort> $adapters
+     * @param  array<int, PaymentGatewayPort>  $adapters
      */
-    public function __construct(private array $adapters)
-    {
-    }
+    public function __construct(private array $adapters) {}
 
     public function resolve(Gateway $gateway): PaymentGatewayPort
     {

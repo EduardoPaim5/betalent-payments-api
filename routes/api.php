@@ -10,8 +10,8 @@ use App\Http\Controllers\Api\TransactionController;
 use App\Http\Controllers\Api\UserController;
 use Illuminate\Support\Facades\Route;
 
-Route::post('/login', [AuthController::class, 'login']);
-Route::post('/purchases', [PurchaseController::class, 'store']);
+Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:login');
+Route::post('/purchases', [PurchaseController::class, 'store'])->middleware('throttle:purchases');
 
 Route::middleware('auth:sanctum')->group(function (): void {
     Route::middleware('role:ADMIN,MANAGER,FINANCE')->group(function (): void {

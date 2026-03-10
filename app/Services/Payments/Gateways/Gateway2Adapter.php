@@ -38,8 +38,8 @@ class Gateway2Adapter implements PaymentGatewayPort
             $externalId = $this->extractExternalId($data, $response);
 
             if ($externalId === null) {
-                return GatewayResult::technicalFailure(
-                    message: 'Gateway 2 approved without external transaction id',
+                return GatewayResult::ambiguousFailure(
+                    message: 'Gateway 2 approved payment without an external transaction id. Manual review is required.',
                     rawResponse: $data,
                     statusCode: $response->status(),
                 );

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Exceptions\ConflictException;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Product\StoreProductRequest;
 use App\Http\Requests\Product\UpdateProductRequest;
@@ -41,6 +42,13 @@ class ProductController extends Controller
 
     public function destroy(Product $product)
     {
+        if ($product->transactions()->exists()) {
+            throw new ConflictException(
+                message: 'Products with purchase history cannot be deleted. Disable the product instead.',
+                errorCode: 'product_has_transaction_history',
+            );
+        }
+
         $product->delete();
 
         return response()->noContent();

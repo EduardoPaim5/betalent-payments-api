@@ -16,6 +16,13 @@ class InternalDataAuthorizationTest extends TestCase
 {
     use RefreshDatabase;
 
+    public function test_guest_receives_unauthorized_for_private_route(): void
+    {
+        $this->getJson('/api/gateways')
+            ->assertUnauthorized()
+            ->assertJsonPath('error.code', 'unauthenticated');
+    }
+
     public function test_user_cannot_list_gateways(): void
     {
         $user = User::query()->create([

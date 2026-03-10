@@ -10,6 +10,7 @@ Execute os comandos abaixo na raiz do repositório:
 docker compose up -d --build
 curl http://localhost:8000/up
 docker compose exec app php artisan test
+docker compose exec app php scripts/smoke.php
 ```
 
 Observações do ambiente Docker:
@@ -17,6 +18,8 @@ Observações do ambiente Docker:
 - o container gera uma `APP_KEY` local automaticamente quando ela não é fornecida pelo ambiente
 - o MySQL usa volume nomeado (`mysql_data`), então os dados persistem entre `docker compose down` e `docker compose up`
 - o seed automático acontece apenas quando o banco está vazio; reiniciar a API não deve sobrescrever usuários e produtos já existentes
+- `docker compose exec app php artisan test` usa SQLite em memória dentro do processo de testes e não deve limpar o MySQL da stack
+- existe um smoke test HTTP real em `scripts/smoke.php` para validar login, compra com fallback, replay idempotente e reembolso
 - para reiniciar do zero, use `docker compose down -v`
 
 ## Requisitos
@@ -43,9 +46,11 @@ Observações do ambiente Docker:
 ## Decisões arquiteturais
 
 - O valor da compra é sempre calculado no backend para evitar manipulação no cliente.
+- Compras aceitam `Idempotency-Key` opcional para evitar duplicidade em retries do cliente.
 - O contrato entre a aplicação e os gateways passa por adapters, o que simplifica a adição de novos gateways.
 - `gateway_attempts` existe para rastrear fallback, latência e falhas por tentativa.
 - `external_id` é obrigatório para confirmar uma cobrança aprovada e permitir reembolso com segurança.
+- respostas ambíguas do gateway não geram fallback automático para evitar risco de dupla cobrança
 - O gateway salvo na transação representa apenas o gateway vencedor.
 
 ## Diagrama simplificado
@@ -68,6 +73,7 @@ Client
 - Gateways ativos são processados por ordem de prioridade crescente
 - Falha em um gateway aciona tentativa no próximo gateway ativo
 - A transação só vira `paid` quando existir aprovação com `external_id`
+- Aprovação sem `external_id` encerra o fluxo e exige revisão manual
 - Reembolso só é permitido para transações `paid`
 - Reembolso usa obrigatoriamente o gateway vencedor da compra
 - Exceções técnicas em um gateway são registradas como falha e não interrompem o fallback
@@ -134,6 +140,7 @@ Comportamento do bootstrap da API:
 
 - o container espera o MySQL ficar acessível antes de rodar `migrate`
 - o seed roda apenas no modo `if-empty`, evitando resetar os dados a cada restart
+- o healthcheck do Compose valida `GET /up`, não apenas a porta aberta
 - a aplicação sobe como `www-data`, não como `root`
 
 ## Como rodar os testes
@@ -143,6 +150,8 @@ O caminho principal de validação do projeto é via Docker.
 ```bash
 docker compose up -d --build
 docker compose exec app php artisan test
+docker compose exec -e RUN_GATEWAY_INTEGRATION_TESTS=true app php artisan test --testsuite=Integration
+docker compose exec app php scripts/smoke.php
 ```
 
 Se a stack já estiver de pé:
@@ -155,6 +164,12 @@ Para rodar apenas feature tests:
 
 ```bash
 docker compose exec app php artisan test --testsuite=Feature
+```
+
+Para validar os mocks reais dos gateways via suíte de integração opcional:
+
+```bash
+docker compose exec -e RUN_GATEWAY_INTEGRATION_TESTS=true app php artisan test --testsuite=Integration
 ```
 
 Se quiser resetar completamente a base persistida do Docker:
@@ -172,7 +187,25 @@ php -d extension=pdo_sqlite -d extension=sqlite3 vendor/bin/phpunit --testdox
 
 Se `pdo_sqlite` e `sqlite3` não estiverem habilitados no host, use apenas a execução via Docker.
 
+Observações:
+
+- a suíte padrão (`php artisan test`) usa SQLite em memória e não altera a base MySQL persistida do Compose
+- a suíte `Integration` fica separada porque depende dos mocks HTTP reais estarem acessíveis
+
 Se o seu ambiente usar o binário legado, substitua `docker compose` por `docker-compose`.
+
+Atalhos com `Makefile`:
+
+```bash
+make up
+make composer-validate
+make test
+make test-integration
+make smoke
+make verify
+```
+
+`make verify` replica a validação principal da entrega localmente: valida o `composer.json`, confere estilo, executa a suíte da aplicação, a suíte de integração contra os mocks reais e o smoke test HTTP.
 
 Arquivo de ambiente:
 
@@ -293,6 +326,12 @@ Filtros disponíveis:
 
 `POST /api/purchases`
 
+Header opcional para retries seguros:
+
+```text
+Idempotency-Key: checkout-123
+```
+
 ```json
 {
   "client": {
@@ -317,6 +356,10 @@ Regras:
 - produto inativo não pode ser comprado
 - `amount` total da transação é calculado no backend
 - `unit_amount` e `line_total` ficam congelados no histórico da compra
+- a mesma `Idempotency-Key` com o mesmo payload retorna a transação já criada
+- a mesma `Idempotency-Key` com payload diferente é rejeitada com `validation_error`
+- alterar o cartão, mesmo mantendo os mesmos últimos 4 dígitos, invalida o replay idempotente
+- se um gateway responder com sucesso sem `external_id`, o fluxo é interrompido sem tentar outro gateway
 
 ## Contrato de reembolso
 
@@ -334,6 +377,11 @@ Regras:
 - transações `failed`, `refund_processing` e `refunded` são bloqueadas
 - falha de reembolso mantém a transação em `paid` e registra a tentativa como `refund_failed`
 - reembolso duplicado não é permitido enquanto existir um reembolso `processing` ou `refunded`
+
+## Operações administrativas
+
+- produtos com histórico de compra não podem ser removidos via `DELETE`; nesse caso a API retorna conflito e o caminho correto é desativar o produto
+- login e compra pública possuem rate limiting para reduzir abuso básico da API
 
 ## Resposta de erro
 
@@ -354,6 +402,7 @@ Regras:
 Códigos usados:
 
 - `validation_error`
+- `unauthenticated`
 - `forbidden`
 - `payment_failed`
 - `resource_not_found`

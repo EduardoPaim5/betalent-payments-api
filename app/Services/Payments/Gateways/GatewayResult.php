@@ -14,6 +14,7 @@ class GatewayResult
         public ?string $errorType,
         public array $rawResponse,
         public ?int $statusCode = null,
+        public bool $shouldStopFallback = false,
     ) {}
 
     public function toArray(): array
@@ -25,6 +26,7 @@ class GatewayResult
             'message' => $this->message,
             'errorType' => $this->errorType,
             'statusCode' => $this->statusCode,
+            'shouldStopFallback' => $this->shouldStopFallback,
             'rawResponse' => $this->rawResponse,
         ];
     }
@@ -42,6 +44,24 @@ class GatewayResult
             GatewayErrorType::TECHNICAL->value,
             $rawResponse,
             $statusCode,
+            false,
+        );
+    }
+
+    public static function ambiguousFailure(
+        string $message = 'Gateway returned an ambiguous approval result. Manual review is required.',
+        array $rawResponse = [],
+        ?int $statusCode = null,
+    ): self {
+        return new self(
+            false,
+            null,
+            'ambiguous',
+            $message,
+            GatewayErrorType::AMBIGUOUS->value,
+            $rawResponse,
+            $statusCode,
+            true,
         );
     }
 }

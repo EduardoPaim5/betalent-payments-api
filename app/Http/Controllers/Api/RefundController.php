@@ -11,9 +11,7 @@ use App\Services\Support\ApiResponse;
 
 class RefundController extends Controller
 {
-    public function __construct(private ProcessRefundService $service)
-    {
-    }
+    public function __construct(private ProcessRefundService $service) {}
 
     public function store(CreateRefundRequest $request)
     {

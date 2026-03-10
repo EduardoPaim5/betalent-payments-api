@@ -10,20 +10,19 @@ use App\Services\Support\ApiResponse;
 
 class PurchaseController extends Controller
 {
-    public function __construct(private ProcessPaymentService $service)
-    {
-    }
+    public function __construct(private ProcessPaymentService $service) {}
 
     public function store(CreatePurchaseRequest $request)
     {
         $validated = $request->validated();
 
-        $transaction = $this->service->execute([
+        $result = $this->service->execute([
             'name' => $validated['client']['name'],
             'email' => $validated['client']['email'],
             'card_number' => $validated['payment']['card_number'],
             'cvv' => $validated['payment']['cvv'],
-        ], $validated['items']);
+        ], $validated['items'], $validated['idempotency_key'] ?? null);
+        $transaction = $result->transaction;
 
         if ($transaction->status === 'failed') {
             return ApiResponse::error('payment_failed', 'All gateways failed to process this payment.', [
@@ -33,7 +32,8 @@ class PurchaseController extends Controller
         }
 
         return ApiResponse::success([
+            'replayed' => $result->replayed,
             'transaction' => TransactionResource::make($transaction),
-        ], 201);
+        ], $result->responseStatus());
     }
 }

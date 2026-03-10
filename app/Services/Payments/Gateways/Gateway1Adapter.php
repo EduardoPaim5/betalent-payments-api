@@ -40,8 +40,8 @@ class Gateway1Adapter implements PaymentGatewayPort
             $externalId = $this->extractExternalId($data, $response);
 
             if ($externalId === null) {
-                return GatewayResult::technicalFailure(
-                    message: 'Gateway 1 approved without external transaction id',
+                return GatewayResult::ambiguousFailure(
+                    message: 'Gateway 1 approved payment without an external transaction id. Manual review is required.',
                     rawResponse: $data,
                     statusCode: $response->status(),
                 );
@@ -62,7 +62,7 @@ class Gateway1Adapter implements PaymentGatewayPort
             false,
             null,
             'declined',
-            (string) ($data['message'] ?? 'Gateway 1 authorization failed'),
+            (string) ($data['message'] ?? $data['error'] ?? 'Gateway 1 authorization failed'),
             $response->status() >= 500 ? GatewayErrorType::TECHNICAL->value : GatewayErrorType::BUSINESS->value,
             $data,
             $response->status(),
@@ -95,7 +95,7 @@ class Gateway1Adapter implements PaymentGatewayPort
             false,
             null,
             'refund_failed',
-            (string) ($data['message'] ?? 'Gateway 1 refund failed'),
+            (string) ($data['message'] ?? $data['error'] ?? 'Gateway 1 refund failed'),
             $response->status() >= 500 ? GatewayErrorType::TECHNICAL->value : GatewayErrorType::BUSINESS->value,
             $data,
             $response->status(),
