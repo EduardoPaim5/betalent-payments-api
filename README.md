@@ -4,6 +4,16 @@ API RESTful em Laravel para o desafio prático Back-end da BeTalent.
 
 Implementa um gerenciador de pagamentos multi-gateway com compra pública, cálculo de valor no backend, fallback por prioridade, reembolso, autorização por roles e validação automatizada via Docker.
 
+## Avaliação em 60 segundos
+
+**Problema:** uma compra pode falhar em um gateway, ser repetida pelo cliente ou precisar de reembolso. O projeto trata cálculo de valor no servidor, autorização, tentativas e transições financeiras com gateways simulados.
+
+**Caminho de leitura:** [`ProcessPaymentService`](app/Services/Payments/ProcessPaymentService.php) → serviços de idempotência/transação → adapters → [testes](tests/). Para executar, siga “Avaliação rápida” abaixo.
+
+**Demonstração:** `php scripts/smoke.php` realiza o fluxo HTTP de login, compra com fallback, replay e reembolso na stack local. Confira também os cenários de falha e autorização da suíte. O script cria registros de teste; use o ambiente local descartável.
+
+**Limite:** desafio técnico de portfólio. Não processa pagamentos reais nem demonstra operação comercial.
+
 ## O que foi implementado
 
 - Autenticação com Laravel Sanctum.
